@@ -56,6 +56,7 @@ pub async fn load_gen(param: LoadGenParam) -> Result {
 
     let timeout_time = Instant::now() + Duration::from_secs(param.timeout);
     let mut interval = interval(Duration::from_secs(1));
+    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     let mut tick = 0_i64;
     while Instant::now() <= timeout_time {
         interval.tick().await;
@@ -63,14 +64,13 @@ pub async fn load_gen(param: LoadGenParam) -> Result {
         println!("=== TICK #{tick} ===");
 
         let task_count: i64 = eval_task_count(&param.spawn_rate, tick)?;
+        println!("TASK COUNT: {task_count}");
 
-        for _ in 0..task_count {
+        for _ in 1..=task_count {
             tasks.push(tokio::spawn(run_functions(
                 param.functions_to_execute.clone(),
             )));
         }
-
-        println!("TASK COUNT: {task_count}");
     }
 
     let mut pass_count = 0;
