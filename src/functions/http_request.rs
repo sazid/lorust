@@ -12,16 +12,16 @@ use serde::{Deserialize, Serialize};
 
 use super::result::*;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum FormDataValue {
     Str(String),
     FilePath(String, String),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct KeyValue<T>(pub String, pub T);
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub enum HttpBody {
     #[default]
     Empty,
@@ -35,7 +35,7 @@ fn default_http_method() -> String {
     "GET".into()
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct HttpRequestParam {
     pub url: String,
 
@@ -112,9 +112,9 @@ pub async fn make_request(param: HttpRequestParam) -> Result {
     };
 
     let request = request_builder.body(body)?;
-    let mut response = client.send_async(request).await?;
+    let response = client.send_async(request).await?;
 
-    println!("{}", response.text().await?);
+    // println!("{}", response.text().await?);
     println!("{:#?}", response.metrics().unwrap());
 
     Ok(FunctionResult::Passed)

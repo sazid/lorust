@@ -6,4 +6,4 @@ pub enum FunctionResult {
     Failed,
 }
 
-pub type Result = std::result::Result<FunctionResult, Box<dyn std::error::Error>>;
+pub type Result = std::result::Result<FunctionResult, Box<dyn std::error::Error + Send + Sync>>;

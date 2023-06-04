@@ -5,7 +5,7 @@ use tokio::time;
 
 use super::result::*;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SleepParam {
     duration: u64,
 }

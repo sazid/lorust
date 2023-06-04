@@ -4,7 +4,7 @@ mod functions;
 use crate::flow::Flow;
 use crate::functions::run;
 
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -13,19 +13,15 @@ async fn main() -> Result<()> {
         "functions": [
             {
                 "LoadGen": {
-                    "spawn_rate": 10,
-                    "max_users": 500,
-                    "timeout": 32,
-                    "max_workers": 32,
+                    "spawn_rate": "5 * TICK",
+                    "timeout": 10,
                     "functions_to_execute": [
                         {
-                            "Sleep": {
-                                "duration": 5
-                            }
-                        },
-                        {
                             "HttpRequest": {
-                                "url": "https://httpbin.org/ip"
+                                "url": "https://qa.zeuz.ai/Home/Dashboard",
+                                "headers": [
+                                    ["X-API-KEY", "d0808976-8be4-4d80-8d9d-5806f4ebb87c"]
+                                ]
                             }
                         }
                     ]
