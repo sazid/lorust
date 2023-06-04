@@ -18,6 +18,7 @@ pub struct LoadGenParam {
 }
 
 pub async fn load_gen(param: LoadGenParam) -> Result {
+    println!("Running load generator with the config:");
     println!("{:?}", param);
     run_function(param.functions_to_execute).await?;
     Ok(FunctionResult::Passed)
