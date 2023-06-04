@@ -11,6 +11,7 @@ pub struct SleepParam {
 }
 
 pub async fn sleep(param: SleepParam) -> Result {
+    println!("Sleeping for {} secs", param.duration);
     time::sleep(Duration::from_secs(param.duration)).await;
 
     Ok(FunctionResult::Passed)

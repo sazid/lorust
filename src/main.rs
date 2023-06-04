@@ -12,6 +12,11 @@ async fn main() -> Result<()> {
     {
         "functions": [
             {
+                "Sleep": {
+                    "duration": 5
+                }
+            },
+            {
                 "HttpRequest": {
                     "url": "https://httpbin.org/ip"
                 }
