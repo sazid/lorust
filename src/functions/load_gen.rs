@@ -53,7 +53,6 @@ pub async fn load_gen(param: LoadGenParam) -> Result {
     println!("{:?}", param);
 
     let mut tasks = Vec::new();
-    let mut current_task_count = 0;
 
     let timeout_time = Instant::now() + Duration::from_secs(param.timeout);
     let mut interval = interval(Duration::from_secs(1));
