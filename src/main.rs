@@ -12,20 +12,30 @@ async fn main() -> Result<()> {
     {
         "functions": [
             {
-                "Sleep": {
-                    "duration": 5
-                }
-            },
-            {
-                "HttpRequest": {
-                    "url": "https://httpbin.org/ip"
+                "LoadGen": {
+                    "spawn_rate": 10,
+                    "max_users": 500,
+                    "timeout": 32,
+                    "max_workers": 32,
+                    "functions_to_execute": [
+                        {
+                            "Sleep": {
+                                "duration": 5
+                            }
+                        },
+                        {
+                            "HttpRequest": {
+                                "url": "https://httpbin.org/ip"
+                            }
+                        }
+                    ]
                 }
             }
         ]
     }
     "#;
     let flow: Flow = serde_json::from_str(param_str)?;
-    run::run(flow).await?;
+    run::run_flow(flow).await?;
 
     Ok(())
 }

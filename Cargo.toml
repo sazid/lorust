@@ -13,3 +13,4 @@ serde_json = { version = "1.0.96", features = ["std", "preserve_order"] }
 form-data-builder = "1.0.1"
 url_encoded_data = "0.6.1"
 thiserror = "1.0.40"
+async-recursion = "1.0.4"
