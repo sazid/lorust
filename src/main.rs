@@ -1,5 +1,8 @@
 mod flow;
 mod functions;
+mod kv_store;
+
+use kv_store::KvStore;
 
 use crate::flow::Flow;
 use crate::functions::run;
@@ -13,7 +16,7 @@ async fn main() -> Result<()> {
         "functions": [
             {
                 "LoadGen": {
-                    "spawn_rate": "5 * TICK",
+                    "spawn_rate": "1 * TICK",
                     "timeout": 10,
                     "functions_to_execute": [
                         {
@@ -31,7 +34,9 @@ async fn main() -> Result<()> {
     }
     "#;
     let flow: Flow = serde_json::from_str(param_str)?;
-    run::run_flow(flow).await?;
+    let kv_store = KvStore::new();
+
+    run::run_flow(flow, kv_store.clone()).await?;
 
     Ok(())
 }

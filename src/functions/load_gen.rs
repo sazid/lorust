@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{flow::Function, functions::run::run_functions};
+use crate::{flow::Function, functions::run::run_functions, kv_store::KvStore};
 
 use tokio::time::{interval, Duration, Instant};
 
@@ -48,7 +48,7 @@ fn eval_task_count(
     Ok(result)
 }
 
-pub async fn load_gen(param: LoadGenParam) -> Result {
+pub async fn load_gen(param: LoadGenParam, kv_store: KvStore) -> Result {
     println!("Running load generator with the config:");
     println!("{:?}", param);
 
@@ -69,6 +69,7 @@ pub async fn load_gen(param: LoadGenParam) -> Result {
         for _ in 1..=task_count {
             tasks.push(tokio::spawn(run_functions(
                 param.functions_to_execute.clone(),
+                kv_store.clone(),
             )));
         }
     }

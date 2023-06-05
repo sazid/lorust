@@ -10,6 +10,8 @@ use url_encoded_data::UrlEncodedData;
 
 use serde::{Deserialize, Serialize};
 
+use crate::kv_store::KvStore;
+
 use super::result::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -57,7 +59,7 @@ pub struct HttpRequestParam {
     pub timeout: Option<u64>,
 }
 
-pub async fn make_request(param: HttpRequestParam) -> Result {
+pub async fn make_request(param: HttpRequestParam, kv_store: KvStore) -> Result {
     let client = HttpClient::builder()
         .timeout(Duration::from_secs(60))
         .metrics(true)
