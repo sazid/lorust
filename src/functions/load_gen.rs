@@ -68,6 +68,7 @@ pub async fn load_gen(param: LoadGenParam, kv_store: KvStore) -> Result {
         let mut task_count = eval_task_count(&param.spawn_rate, tick)?;
 
         // Adjust task count to max task
+        // TODO: This is a wrong implementation of max tasks
         if let Some(max_tasks) = param.max_tasks {
             task_count = std::cmp::min(max_tasks as i64, task_count);
         }

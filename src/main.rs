@@ -16,16 +16,16 @@ async fn main() -> Result<()> {
         "functions": [
             {
                 "LoadGen": {
-                    "spawn_rate": "1 * TICK",
-                    "max_tasks": 3,
-                    "timeout": 5,
+                    "spawn_rate": "5 * TICK",
+                    "timeout": 30,
                     "functions_to_execute": [
                         {
                             "HttpRequest": {
                                 "url": "https://qa.zeuz.ai/Home/Dashboard",
                                 "headers": [
                                     ["X-API-KEY", "d0808976-8be4-4d80-8d9d-5806f4ebb87c"]
-                                ]
+                                ],
+                                "timeout": 300
                             }
                         }
                     ]
