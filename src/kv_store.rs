@@ -8,7 +8,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 #[derive(Error, Debug)]
 pub enum KvError {
     #[error("could not deserialize json string")]
-    DeserializeFailed,
+    DeserializeError,
 
     #[error("no data found with the given key: {key:?}")]
     NoDataFound { key: String },
@@ -60,13 +60,13 @@ impl KvStore {
         let reader = self.data.read().unwrap();
         let value = match reader.get(&key) {
             Some(s) => s.clone(),
-            None => return Err(KvError::NoDataFound { key: key }),
+            None => return Err(KvError::NoDataFound { key }),
         };
 
         let value = serde_json::from_str(&value);
         match value {
             Ok(val) => Ok(val),
-            Err(_) => Err(KvError::DeserializeFailed),
+            Err(_) => Err(KvError::DeserializeError),
         }
     }
 }

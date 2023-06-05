@@ -12,6 +12,9 @@ pub struct LoadGenParam {
 
     timeout: u64,
 
+    #[serde(default)]
+    max_tasks: Option<u64>,
+
     functions_to_execute: Vec<Function>,
 }
 
@@ -61,10 +64,15 @@ pub async fn load_gen(param: LoadGenParam, kv_store: KvStore) -> Result {
     while Instant::now() <= timeout_time {
         interval.tick().await;
         tick += 1;
-        println!("=== TICK #{tick} ===");
 
-        let task_count: i64 = eval_task_count(&param.spawn_rate, tick)?;
-        println!("TASK COUNT: {task_count}");
+        let mut task_count = eval_task_count(&param.spawn_rate, tick)?;
+
+        // Adjust task count to max task
+        if let Some(max_tasks) = param.max_tasks {
+            task_count = std::cmp::min(max_tasks as i64, task_count);
+        }
+
+        println!("=== TICK #{tick}, TASK COUNT: {task_count} ===");
 
         for _ in 1..=task_count {
             tasks.push(tokio::spawn(run_functions(
