@@ -1,21 +1,13 @@
-use std::{any::Any, collections::BTreeMap, sync::Arc};
-use thiserror::Error;
+use std::{collections::BTreeMap, str::FromStr, sync::Arc};
 
-use parking_lot::{MappedRwLockReadGuard, RwLock};
+use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
+
+use rhai::Dynamic;
 
 use serde::{de::DeserializeOwned, Serialize};
 
-#[derive(Error, Debug)]
-pub enum KvError {
-    #[error("could not deserialize json string")]
-    DeserializeError,
-
-    #[error("no data found with the given key: {key:?}")]
-    NoDataFound { key: String },
-}
-
 pub struct KvStore {
-    data: Arc<RwLock<BTreeMap<String, Box<dyn Any + Send + Sync>>>>,
+    data: Arc<RwLock<BTreeMap<String, Dynamic>>>,
 }
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -32,29 +24,22 @@ impl KvStore {
         self.data.write().clear();
     }
 
-    pub fn set<T: Send + Sync + 'static>(&self, key: String, value: T) -> Result<()> {
-        self.data.write().insert(key, Box::new(value));
-        Ok(())
+    pub fn set<T: Clone + Send + Sync + 'static>(&self, key: String, value: T) -> Option<Dynamic> {
+        self.data.write().insert(key, Dynamic::from(value))
     }
 
-    pub fn get<T: Send + Sync + 'static>(&self, key: String) -> MappedRwLockReadGuard<Option<&T>> {
-        let lock: parking_lot::lock_api::RwLockReadGuard<
-            parking_lot::RawRwLock,
-            BTreeMap<String, Box<dyn Any + Send + Sync>>,
-        > = self.data.read();
-
-        MappedRwLockReadGuard::map(
-            &lock,
-            |lock: parking_lot::lock_api::RwLockReadGuard<
-                parking_lot::RawRwLock,
-                BTreeMap<String, Box<dyn Any + Send + Sync>>,
-            >| { lock.get(&key).and_then(|s| s.downcast_ref()) },
-        )
+    pub fn get<T: 'static>(&self, key: &str) -> Option<MappedRwLockReadGuard<&T>> {
+        RwLockReadGuard::try_map(self.data.read(), |m| {
+            m.get(key).and_then(|v| v.clone().try_cast())
+        })
+        .ok()
     }
 
     pub fn set_json(&self, key: String, value: &impl Serialize) -> Result<()> {
         let value = serde_json::to_string(value)?;
-        self.data.write().insert(key, Box::new(value));
+        self.data
+            .write()
+            .insert(key, Dynamic::from_str(&value).unwrap());
         Ok(())
     }
 
@@ -65,8 +50,9 @@ impl KvStore {
         let reader = self.data.read();
         let value = reader.get(&key)?;
 
-        let value = *value.downcast_ref::<&str>()?;
-        let value = serde_json::from_str(value);
+        // let value = *value.downcast_ref::<&str>()?;
+        let value = value.clone().into_string().unwrap();
+        let value = serde_json::from_str(&value);
         value.ok()
     }
 }

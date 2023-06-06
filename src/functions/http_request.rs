@@ -59,7 +59,7 @@ pub struct HttpRequestParam {
     pub timeout: Option<u64>,
 }
 
-pub async fn make_request(param: HttpRequestParam, kv_store: KvStore) -> Result {
+pub async fn make_request(param: HttpRequestParam, _kv_store: KvStore) -> Result {
     let client = HttpClient::builder()
         .timeout(Duration::from_secs(60))
         .metrics(true)

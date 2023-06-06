@@ -12,7 +12,7 @@ pub struct SleepParam {
     duration: u64,
 }
 
-pub async fn sleep(param: SleepParam, kv_store: KvStore) -> Result {
+pub async fn sleep(param: SleepParam, _kv_store: KvStore) -> Result {
     println!("Sleeping for {} secs", param.duration);
     time::sleep(Duration::from_secs(param.duration)).await;
 
