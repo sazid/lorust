@@ -1,5 +1,5 @@
 use crate::flow::{Flow, Function};
-use crate::kv_store::{self, KvStore};
+use crate::kv_store::KvStore;
 
 use super::http_request;
 use super::load_gen;

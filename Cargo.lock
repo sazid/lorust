@@ -1229,6 +1229,7 @@ dependencies = [
  "form-data-builder",
  "futures",
  "isahc",
+ "parking_lot",
  "rhai",
  "serde",
  "serde_json",

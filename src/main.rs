@@ -16,8 +16,8 @@ async fn main() -> Result<()> {
         "functions": [
             {
                 "LoadGen": {
-                    "spawn_rate": "5 * TICK",
-                    "timeout": 30,
+                    "spawn_rate": "1",
+                    "timeout": 5,
                     "functions_to_execute": [
                         {
                             "HttpRequest": {

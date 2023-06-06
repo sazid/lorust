@@ -1,9 +1,9 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{any::Any, collections::BTreeMap, sync::Arc};
 use thiserror::Error;
 
-use std::sync::RwLock;
+use parking_lot::{MappedRwLockReadGuard, RwLock};
 
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Serialize};
 
 #[derive(Error, Debug)]
 pub enum KvError {
@@ -15,10 +15,10 @@ pub enum KvError {
 }
 
 pub struct KvStore {
-    data: Arc<RwLock<BTreeMap<String, String>>>,
+    data: Arc<RwLock<BTreeMap<String, Box<dyn Any + Send + Sync>>>>,
 }
 
-// type Result<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 #[allow(dead_code)]
 impl KvStore {
@@ -29,45 +29,45 @@ impl KvStore {
     }
 
     pub fn clear(&self) {
-        self.data.write().unwrap().clear();
+        self.data.write().clear();
     }
 
-    pub fn set(&self, key: String, value: String) -> Option<String> {
-        self.data.write().unwrap().insert(key, value)
+    pub fn set<T: Send + Sync + 'static>(&self, key: String, value: T) -> Result<()> {
+        self.data.write().insert(key, Box::new(value));
+        Ok(())
     }
 
-    pub fn get(&self, key: String) -> Option<String> {
-        self.data
-            .read()
-            .unwrap()
-            .get(&key)
-            .and_then(|s| Some(s.clone()))
+    pub fn get<T: Send + Sync + 'static>(&self, key: String) -> MappedRwLockReadGuard<Option<&T>> {
+        let lock: parking_lot::lock_api::RwLockReadGuard<
+            parking_lot::RawRwLock,
+            BTreeMap<String, Box<dyn Any + Send + Sync>>,
+        > = self.data.read();
+
+        MappedRwLockReadGuard::map(
+            &lock,
+            |lock: parking_lot::lock_api::RwLockReadGuard<
+                parking_lot::RawRwLock,
+                BTreeMap<String, Box<dyn Any + Send + Sync>>,
+            >| { lock.get(&key).and_then(|s| s.downcast_ref()) },
+        )
     }
 
-    pub fn set_json(
-        &self,
-        key: String,
-        value: &impl Serialize,
-    ) -> std::result::Result<Option<String>, Box<dyn std::error::Error + Send + Sync>> {
+    pub fn set_json(&self, key: String, value: &impl Serialize) -> Result<()> {
         let value = serde_json::to_string(value)?;
-        Ok(self.data.write().unwrap().insert(key, value))
+        self.data.write().insert(key, Box::new(value));
+        Ok(())
     }
 
-    pub fn get_json<T>(&self, key: String) -> std::result::Result<T, KvError>
+    pub fn get_json<T>(&self, key: String) -> Option<T>
     where
         T: DeserializeOwned,
     {
-        let reader = self.data.read().unwrap();
-        let value = match reader.get(&key) {
-            Some(s) => s.clone(),
-            None => return Err(KvError::NoDataFound { key }),
-        };
+        let reader = self.data.read();
+        let value = reader.get(&key)?;
 
-        let value = serde_json::from_str(&value);
-        match value {
-            Ok(val) => Ok(val),
-            Err(_) => Err(KvError::DeserializeError),
-        }
+        let value = *value.downcast_ref::<&str>()?;
+        let value = serde_json::from_str(value);
+        value.ok()
     }
 }
 
