@@ -1,4 +1,5 @@
 use std::{collections::BTreeMap, str::FromStr, sync::Arc};
+use thiserror::Error;
 
 use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
 
@@ -8,6 +9,12 @@ use serde::{de::DeserializeOwned, Serialize};
 
 pub struct KvStore {
     data: Arc<RwLock<BTreeMap<String, Dynamic>>>,
+}
+
+#[derive(Error, Debug)]
+pub enum KvError {
+    #[error("could not cast from `&str` to `rhai::Dynamic`")]
+    CastFromStrError,
 }
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -35,12 +42,10 @@ impl KvStore {
         .ok()
     }
 
-    pub fn set_json(&self, key: String, value: &impl Serialize) -> Result<()> {
+    pub fn set_json(&self, key: String, value: &impl Serialize) -> Result<Option<rhai::Dynamic>> {
         let value = serde_json::to_string(value)?;
-        self.data
-            .write()
-            .insert(key, Dynamic::from_str(&value).unwrap());
-        Ok(())
+        let value = Dynamic::from_str(&value).map_err(|_| KvError::CastFromStrError)?;
+        Ok(self.data.write().insert(key, value))
     }
 
     pub fn get_json<T>(&self, key: String) -> Option<T>
