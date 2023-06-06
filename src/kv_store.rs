@@ -55,10 +55,9 @@ impl KvStore {
         let reader = self.data.read();
         let value = reader.get(&key)?;
 
-        // let value = *value.downcast_ref::<&str>()?;
-        let value = value.clone().into_string().unwrap();
-        let value = serde_json::from_str(&value);
-        value.ok()
+        let value = value.clone().into_string().ok()?;
+        let value = serde_json::from_str(&value).ok();
+        value
     }
 }
 
