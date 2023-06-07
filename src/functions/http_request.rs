@@ -15,6 +15,86 @@ use crate::kv_store::KvStore;
 use super::result::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct HttpMetric {
+    /// URL of the request
+    pub url: String,
+
+    /// HTTP verb such as GET, POST, HEAD, PUT, etc.
+    pub http_verb: String,
+
+    /// HTTP status code of the response
+    pub status_code: i64,
+
+    /// Total size of the response body (in bytes)
+    pub response_body_size: usize,
+
+    /// When did the request start
+    pub time_stamp: String,
+
+    /// Whenever the status code is not within the range 200 <= 299,
+    /// the response body is collected as a string.
+    pub response_body: String,
+
+    pub upload_total: f64,
+    pub download_total: f64,
+    pub upload_speed: f64,
+    pub download_speed: f64,
+
+    // An overview of the six time values (taken from the curl documentation):
+    //
+    // curl_easy_perform()                   struct member name
+    //     |                                --------------------
+    //     |--NAMELOOKUP                    - namelookup_time
+    //     |--|--CONNECT                    - connect_time
+    //     |--|--|--APPCONNECT              - tls_handshake_time
+    //     |--|--|--|--PRETRANSFER
+    //     |--|--|--|--|--STARTTRANSFER     - starttransfer_time
+    //     |--|--|--|--|--|--TOTAL          - elapsed_time
+    //     |--|--|--|--|--|--REDIRECT       - redirect_time
+    //
+    // The numbers we expose in the API are a little more "high-level" than the
+    // ones written here.
+    /// The total time from the start of the request until DNS name
+    /// resolving was completed.
+    ///
+    /// When a redirect is followed, the time from each request is added
+    /// together.
+    pub namelookup_time: Duration,
+
+    /// The amount of time taken to establish a connection to the server
+    /// (not including TLS connection time).
+    ///
+    /// When a redirect is followed, the time from each request is added
+    /// together.
+    pub connect_time: Duration,
+
+    /// Get the amount of time spent on TLS handshakes.
+    ///
+    /// When a redirect is followed, the time from each request is added
+    /// together.
+    pub tls_handshake_time: Duration,
+
+    /// Get the time it took from the start of the request until the first
+    /// byte is either sent or received.
+    ///
+    /// When a redirect is followed, the time from each request is added
+    /// together.
+    pub starttransfer_time: Duration,
+
+    /// Get the total time for the entire request. This will continuously
+    /// increase until the entire response body is consumed and completed.
+    ///
+    /// When a redirect is followed, the time from each request is added
+    /// together.
+    pub elapsed_time: Duration,
+
+    /// If automatic redirect following is enabled, gets the total time taken
+    /// for all redirection steps including name lookup, connect, pretransfer
+    /// and transfer before final transaction was started.
+    pub redirect_time: Duration,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum FormDataValue {
     Str(String),
     FilePath(String, String),
