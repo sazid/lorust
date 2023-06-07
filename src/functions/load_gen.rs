@@ -1,6 +1,11 @@
+use rhai::Dynamic;
 use serde::{Deserialize, Serialize};
 
-use crate::{flow::Function, functions::run::run_functions, kv_store::KvStore};
+use crate::{
+    flow::Function,
+    functions::{http_request::HttpMetric, run::run_functions},
+    kv_store::KvStore,
+};
 
 use tokio::time::{interval, Duration, Instant};
 
@@ -54,6 +59,9 @@ fn eval_task_count(
 pub async fn load_gen(param: LoadGenParam, kv_store: KvStore) -> Result {
     println!("Running load generator with the config:");
     println!("{:?}", param);
+
+    let metrics: Vec<HttpMetric> = Vec::new();
+    kv_store.set("load_gen_metrics", Dynamic::from(metrics));
 
     let mut tasks = Vec::new();
 

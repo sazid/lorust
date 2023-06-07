@@ -31,27 +31,39 @@ impl KvStore {
         self.data.write().clear();
     }
 
-    pub fn set<T: Clone + Send + Sync + 'static>(&self, key: String, value: T) -> Option<Dynamic> {
+    pub fn set<T: Clone + Send + Sync + 'static>(
+        &self,
+        key: impl ToString,
+        value: T,
+    ) -> Option<Dynamic> {
+        let key = key.to_string();
         self.data.write().insert(key, Dynamic::from(value))
     }
 
-    pub fn get<T: 'static>(&self, key: &str) -> Option<MappedRwLockReadGuard<&T>> {
+    pub fn get<T: 'static>(&self, key: impl ToString) -> Option<MappedRwLockReadGuard<&T>> {
+        let key = key.to_string();
         RwLockReadGuard::try_map(self.data.read(), |m| {
-            m.get(key).and_then(|v| v.clone().try_cast())
+            m.get(&key).and_then(|v| v.clone().try_cast())
         })
         .ok()
     }
 
-    pub fn set_json(&self, key: String, value: &impl Serialize) -> Result<Option<rhai::Dynamic>> {
+    pub fn set_json(
+        &self,
+        key: impl ToString,
+        value: &impl Serialize,
+    ) -> Result<Option<rhai::Dynamic>> {
+        let key = key.to_string();
         let value = serde_json::to_string(value)?;
         let value = Dynamic::from_str(&value).map_err(|_| KvError::CastFromStrError)?;
         Ok(self.data.write().insert(key, value))
     }
 
-    pub fn get_json<T>(&self, key: String) -> Option<T>
+    pub fn get_json<T>(&self, key: impl ToString) -> Option<T>
     where
         T: DeserializeOwned,
     {
+        let key = key.to_string();
         let reader = self.data.read();
         let value = reader.get(&key)?;
 

@@ -1,9 +1,10 @@
 use std::str::FromStr;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
+use futures::AsyncReadExt;
 use isahc::http::Method;
 use isahc::{config::RedirectPolicy, prelude::*, Request};
-use isahc::{AsyncBody, HttpClient};
+use isahc::{AsyncBody, AsyncReadResponseExt, HttpClient};
 
 use form_data_builder::FormData;
 use url_encoded_data::UrlEncodedData;
@@ -35,8 +36,8 @@ pub struct HttpMetric {
     /// the response body is collected as a string.
     pub response_body: String,
 
-    pub upload_total: f64,
-    pub download_total: f64,
+    pub upload_total: u64,
+    pub download_total: u64,
     pub upload_speed: f64,
     pub download_speed: f64,
 
@@ -139,7 +140,11 @@ pub struct HttpRequestParam {
     pub timeout: Option<u64>,
 }
 
-pub async fn make_request(param: HttpRequestParam, _kv_store: KvStore) -> Result {
+pub async fn make_request(
+    param: HttpRequestParam,
+    kv_store: KvStore,
+    load_gen_metrics: Option<&mut Vec<HttpMetric>>,
+) -> Result {
     let client = HttpClient::builder()
         .timeout(Duration::from_secs(60))
         .metrics(true)
@@ -149,7 +154,7 @@ pub async fn make_request(param: HttpRequestParam, _kv_store: KvStore) -> Result
         .expect("failed to construct HttpClient");
 
     let mut request_builder = Request::builder()
-        .uri(param.url)
+        .uri(param.url.clone())
         .method(Method::from_str(&param.method)?);
 
     for KeyValue(key, value) in param.headers {
@@ -194,7 +199,51 @@ pub async fn make_request(param: HttpRequestParam, _kv_store: KvStore) -> Result
     };
 
     let request = request_builder.body(body)?;
-    let response = client.send_async(request).await?;
+
+    let time_stamp = chrono::Local::now()
+        .format("%Y-%m-%d %H:%M:%S.%f")
+        .to_string();
+    let mut response = client.send_async(request).await?;
+
+    if let Some(load_gen_metrics) = load_gen_metrics {
+        // WARNING: The response text() can be read only once. So if the response needs to be saved
+        // elsewhere, this needs to be moved upwards the scope.
+        let body = response.text().await?;
+
+        let response_body: String = if response.status().is_success() {
+            ""
+        } else {
+            &body
+        }
+        .into();
+
+        let http_metrics = response
+            .metrics()
+            .expect("metrics must be set to true in the builder");
+
+        let metric = HttpMetric {
+            url: param.url.clone(),
+            http_verb: param.method.clone(),
+            status_code: response.status().as_u16() as i64,
+            response_body_size: body.len(),
+            time_stamp,
+            response_body,
+
+            upload_total: http_metrics.upload_progress().0,
+            download_total: http_metrics.download_progress().0,
+            upload_speed: http_metrics.upload_speed(),
+            download_speed: http_metrics.download_speed(),
+
+            namelookup_time: http_metrics.name_lookup_time(),
+            connect_time: http_metrics.connect_time(),
+            tls_handshake_time: http_metrics.secure_connect_time(),
+            starttransfer_time: http_metrics.transfer_start_time(),
+            elapsed_time: http_metrics.total_time(),
+            redirect_time: http_metrics.redirect_time(),
+        };
+
+        load_gen_metrics.push(metric);
+    }
 
     // println!("{}", response.text().await?);
     println!("{:#?}", response.metrics().unwrap());

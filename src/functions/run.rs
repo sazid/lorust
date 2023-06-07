@@ -28,7 +28,7 @@ pub async fn run_functions(functions: Vec<Function>, kv_store: KvStore) -> Resul
     for (_, function) in functions.into_iter().enumerate() {
         match function {
             Function::HttpRequest(param) => {
-                http_request::make_request(param.clone(), kv_store.clone()).await?
+                http_request::make_request(param.clone(), kv_store.clone(), metrics).await?
             }
             Function::Sleep(param) => sleep::sleep(param.clone(), kv_store.clone()).await?,
             Function::RunRhaiCode(_) => unimplemented!(),
