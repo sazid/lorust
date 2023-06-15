@@ -3,11 +3,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     flow::Function,
-    functions::{http_request::HttpMetric, run::run_functions},
-    kv_store::KvStore,
+    functions::run::run_functions,
+    kv_store::commands::{Command, Sender, Value},
 };
 
-use tokio::time::{interval, Duration, Instant};
+use tokio::{
+    sync::oneshot,
+    time::{interval, Duration, Instant},
+};
 
 use super::result::*;
 
@@ -56,12 +59,20 @@ fn eval_task_count(
     Ok(result)
 }
 
-pub async fn load_gen(param: LoadGenParam, kv_store: KvStore) -> Result {
+pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> Result {
     println!("Running load generator with the config:");
     println!("{:?}", param);
 
-    let metrics: Vec<HttpMetric> = Vec::new();
-    kv_store.set("load_gen_metrics", Dynamic::from(metrics));
+    let metrics: Vec<Dynamic> = Vec::new();
+    let (resp_tx, resp_rx) = oneshot::channel();
+    kv_tx
+        .send(Command::SetArray {
+            key: "load_gen_metrics".into(),
+            value: metrics,
+            resp: resp_tx,
+        })
+        .await?;
+    let _ = resp_rx.await?;
 
     let mut tasks = Vec::new();
 
@@ -86,7 +97,7 @@ pub async fn load_gen(param: LoadGenParam, kv_store: KvStore) -> Result {
         for _ in 1..=task_count {
             tasks.push(tokio::spawn(run_functions(
                 param.functions_to_execute.clone(),
-                kv_store.clone(),
+                kv_tx.clone(),
             )));
         }
     }
@@ -105,6 +116,23 @@ pub async fn load_gen(param: LoadGenParam, kv_store: KvStore) -> Result {
     println!("TOTAL TASKS: {total_task_count}");
     println!("PASSED: {pass_count}");
     println!("FAILED: {fail_count}");
+
+    let (resp_tx, resp_rx) = oneshot::channel();
+    kv_tx
+        .send(Command::Get {
+            key: "load_gen_metrics".into(),
+            resp: resp_tx,
+        })
+        .await?;
+    let metrics = resp_rx.await??;
+
+    if let Value::Array(metrics) = metrics {
+        println!("Collected metrics array size: {:?}", metrics.len());
+        println!("Printing first 3 entries");
+        metrics.iter().take(3).for_each(|x| println!("{:?}", x));
+    } else {
+        println!("It's a different value?!")
+    }
 
     Ok(FunctionResult::Passed)
 }

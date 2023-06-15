@@ -2,7 +2,7 @@ mod flow;
 mod functions;
 mod kv_store;
 
-use kv_store::KvStore;
+use kv_store::store::new as kv_store_new;
 
 use crate::flow::Flow;
 use crate::functions::run;
@@ -35,9 +35,9 @@ async fn main() -> Result<()> {
     }
     "#;
     let flow: Flow = serde_json::from_str(param_str)?;
-    let kv_store = KvStore::new();
+    let kv_tx = kv_store_new().await;
 
-    run::run_flow(flow, kv_store.clone()).await?;
+    run::run_flow(flow, kv_tx).await?;
 
     Ok(())
 }

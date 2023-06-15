@@ -1,17 +1,18 @@
 use std::str::FromStr;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-use futures::AsyncReadExt;
 use isahc::http::Method;
 use isahc::{config::RedirectPolicy, prelude::*, Request};
 use isahc::{AsyncBody, AsyncReadResponseExt, HttpClient};
 
 use form_data_builder::FormData;
+use rhai::Dynamic;
+use tokio::sync::oneshot;
 use url_encoded_data::UrlEncodedData;
 
 use serde::{Deserialize, Serialize};
 
-use crate::kv_store::KvStore;
+use crate::kv_store::commands::{Command, Sender};
 
 use super::result::*;
 
@@ -140,11 +141,7 @@ pub struct HttpRequestParam {
     pub timeout: Option<u64>,
 }
 
-pub async fn make_request(
-    param: HttpRequestParam,
-    kv_store: KvStore,
-    load_gen_metrics: Option<&mut Vec<HttpMetric>>,
-) -> Result {
+pub async fn make_request(param: HttpRequestParam, kv_tx: Sender) -> Result {
     let client = HttpClient::builder()
         .timeout(Duration::from_secs(60))
         .metrics(true)
@@ -205,7 +202,16 @@ pub async fn make_request(
         .to_string();
     let mut response = client.send_async(request).await?;
 
-    if let Some(load_gen_metrics) = load_gen_metrics {
+    let (resp_tx, resp_rx) = oneshot::channel();
+    kv_tx
+        .send(Command::Exists {
+            key: "load_gen_metrics".into(),
+            resp: resp_tx,
+        })
+        .await?;
+    let should_collect_metrics = resp_rx.await??;
+
+    if should_collect_metrics {
         // WARNING: The response text() can be read only once. So if the response needs to be saved
         // elsewhere, this needs to be moved upwards the scope.
         let body = response.text().await?;
@@ -242,7 +248,15 @@ pub async fn make_request(
             redirect_time: http_metrics.redirect_time(),
         };
 
-        load_gen_metrics.push(metric);
+        let (resp_tx, resp_rx) = oneshot::channel();
+        kv_tx
+            .send(Command::Append {
+                key: "load_gen_metrics".into(),
+                resp: resp_tx,
+                value: Dynamic::from(metric),
+            })
+            .await?;
+        let _ = resp_rx.await??;
     }
 
     // println!("{}", response.text().await?);
