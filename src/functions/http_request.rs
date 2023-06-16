@@ -133,13 +133,14 @@ pub struct HttpRequestParam {
     #[serde(default)]
     pub body: HttpBody,
 
-    // #[serde(default)]
-    // cookies: HashMap<String, String>,
     #[serde(default)]
     pub session: Option<String>,
 
     #[serde(default)]
     pub timeout: Option<u64>,
+
+    #[serde(default)]
+    pub redirect_limit: Option<u32>,
 }
 
 pub async fn make_request(
@@ -158,9 +159,9 @@ pub async fn make_request(
     let should_collect_metrics = resp_rx.await??;
 
     let client = HttpClient::builder()
-        .timeout(Duration::from_secs(60))
+        .timeout(Duration::from_secs(param.timeout.unwrap_or(60)))
         .metrics(should_collect_metrics)
-        .redirect_policy(RedirectPolicy::Limit(5))
+        .redirect_policy(RedirectPolicy::Limit(param.redirect_limit.unwrap_or(5)))
         .cookies()
         .build()
         .expect("failed to construct HttpClient");
