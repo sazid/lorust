@@ -147,9 +147,19 @@ pub async fn make_request(
     global_kv_tx: Sender,
     local_kv_tx: Sender,
 ) -> Result {
+    // Check if the load_gen_metrics is set.
+    let (resp_tx, resp_rx) = oneshot::channel();
+    global_kv_tx
+        .send(Command::Exists {
+            key: "load_gen_metrics".into(),
+            resp: resp_tx,
+        })
+        .await?;
+    let should_collect_metrics = resp_rx.await??;
+
     let client = HttpClient::builder()
         .timeout(Duration::from_secs(60))
-        .metrics(true)
+        .metrics(should_collect_metrics)
         .redirect_policy(RedirectPolicy::Limit(5))
         .cookies()
         .build()
@@ -250,16 +260,6 @@ pub async fn make_request(
         })
         .await?;
     resp_rx.await??;
-
-    // Check if the load_gen_metrics is set.
-    let (resp_tx, resp_rx) = oneshot::channel();
-    global_kv_tx
-        .send(Command::Exists {
-            key: "load_gen_metrics".into(),
-            resp: resp_tx,
-        })
-        .await?;
-    let should_collect_metrics = resp_rx.await??;
 
     // Collect metrics if the key is set.
     if should_collect_metrics {
