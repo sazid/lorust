@@ -1,5 +1,5 @@
 use crate::flow::{Flow, Function};
-use crate::kv_store::commands::Sender;
+use crate::kv_store::{commands::Sender, store::new as kv_store_new};
 
 use super::http_request;
 use super::load_gen;
@@ -24,13 +24,19 @@ pub async fn run_loadgen(functions: Vec<Function>, kv_tx: Sender) -> Result {
     Ok(FunctionResult::Passed)
 }
 
-pub async fn run_functions(functions: Vec<Function>, kv_tx: Sender) -> Result {
+pub async fn run_functions(functions: Vec<Function>, global_kv_tx: Sender) -> Result {
+    // TODO: Instead of defining something like this, there should be proper
+    // scoping mechanisms with scope names that can be referred from inside
+    // functions. Maybe a graph of scopes that child scopes can refer back to?
+    let local_kv_tx = kv_store_new().await;
+
     for (_, function) in functions.into_iter().enumerate() {
         match function {
             Function::HttpRequest(param) => {
-                http_request::make_request(param.clone(), kv_tx.clone()).await?
+                http_request::make_request(param.clone(), global_kv_tx.clone(), local_kv_tx.clone())
+                    .await?
             }
-            Function::Sleep(param) => sleep::sleep(param.clone(), kv_tx.clone()).await?,
+            Function::Sleep(param) => sleep::sleep(param.clone(), global_kv_tx.clone()).await?,
             Function::RunRhaiCode(_) => unimplemented!(),
             Function::LoadGen(_) => panic!("load gen function cannot be nested"),
         };

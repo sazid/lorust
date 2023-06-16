@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -141,7 +142,11 @@ pub struct HttpRequestParam {
     pub timeout: Option<u64>,
 }
 
-pub async fn make_request(param: HttpRequestParam, kv_tx: Sender) -> Result {
+pub async fn make_request(
+    param: HttpRequestParam,
+    global_kv_tx: Sender,
+    local_kv_tx: Sender,
+) -> Result {
     let client = HttpClient::builder()
         .timeout(Duration::from_secs(60))
         .metrics(true)
@@ -202,8 +207,53 @@ pub async fn make_request(param: HttpRequestParam, kv_tx: Sender) -> Result {
         .to_string();
     let mut response = client.send_async(request).await?;
 
+    // WARNING: The response text() can be read only once.
+    let body = response.text().await?;
+
+    // Save response body
     let (resp_tx, resp_rx) = oneshot::channel();
-    kv_tx
+    local_kv_tx
+        .send(Command::Set {
+            key: "http_response".into(),
+            value: Dynamic::from(body.clone()),
+            resp: resp_tx,
+        })
+        .await?;
+    resp_rx.await??;
+
+    // Save response status code
+    let (resp_tx, resp_rx) = oneshot::channel();
+    local_kv_tx
+        .send(Command::Set {
+            key: "http_status_code".into(),
+            value: Dynamic::from_int(response.status().as_u16() as i64),
+            resp: resp_tx,
+        })
+        .await?;
+    resp_rx.await??;
+
+    // Save response headers
+    let headers: BTreeMap<String, String> = response
+        .headers()
+        .iter()
+        .filter(|(_, v)| v.to_str().is_ok())
+        .map(|(k, v)| (k.to_string(), v.to_str().unwrap().to_string()))
+        .collect();
+
+    let headers_json = serde_json::to_string(&headers)?;
+    let (resp_tx, resp_rx) = oneshot::channel();
+    local_kv_tx
+        .send(Command::Set {
+            key: "http_response_headers".into(),
+            value: Dynamic::from(headers_json),
+            resp: resp_tx,
+        })
+        .await?;
+    resp_rx.await??;
+
+    // Check if the load_gen_metrics is set.
+    let (resp_tx, resp_rx) = oneshot::channel();
+    global_kv_tx
         .send(Command::Exists {
             key: "load_gen_metrics".into(),
             resp: resp_tx,
@@ -211,11 +261,8 @@ pub async fn make_request(param: HttpRequestParam, kv_tx: Sender) -> Result {
         .await?;
     let should_collect_metrics = resp_rx.await??;
 
+    // Collect metrics if the key is set.
     if should_collect_metrics {
-        // WARNING: The response text() can be read only once. So if the response needs to be saved
-        // elsewhere, this needs to be moved upwards the scope.
-        let body = response.text().await?;
-
         let response_body: String = if response.status().is_success() {
             ""
         } else {
@@ -249,7 +296,7 @@ pub async fn make_request(param: HttpRequestParam, kv_tx: Sender) -> Result {
         };
 
         let (resp_tx, resp_rx) = oneshot::channel();
-        kv_tx
+        global_kv_tx
             .send(Command::Append {
                 key: "load_gen_metrics".into(),
                 resp: resp_tx,
