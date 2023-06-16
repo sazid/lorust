@@ -4,6 +4,7 @@ use crate::kv_store::{commands::Sender, store::new as kv_store_new};
 use super::http_request;
 use super::load_gen;
 use super::result::*;
+use super::rhai_code;
 use super::sleep;
 
 pub async fn run_flow(flow: Flow, kv_tx: Sender) -> Result {
@@ -37,7 +38,9 @@ pub async fn run_functions(functions: Vec<Function>, global_kv_tx: Sender) -> Re
                     .await?
             }
             Function::Sleep(param) => sleep::sleep(param.clone(), global_kv_tx.clone()).await?,
-            Function::RunRhaiCode(_) => unimplemented!(),
+            Function::RunRhaiCode(param) => {
+                rhai_code::run_rhai_code(param, global_kv_tx.clone(), local_kv_tx.clone()).await?
+            }
             Function::LoadGen(_) => panic!("load gen function cannot be nested"),
         };
     }
