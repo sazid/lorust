@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     flow::Function,
-    functions::run::run_functions,
+    functions::{http_request::HttpMetric, run::run_functions},
     kv_store::commands::{Command, Sender, Value},
 };
 
@@ -129,7 +129,14 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> Result {
     if let Value::Array(metrics) = metrics {
         println!("Collected metrics array size: {:?}", metrics.len());
         println!("Printing first 3 entries");
-        metrics.iter().take(3).for_each(|x| println!("{:?}", x));
+        let metrics: Vec<HttpMetric> = metrics
+            .iter()
+            .take(3)
+            .map(|x| x.clone_cast::<HttpMetric>())
+            .collect();
+
+        let json_str = serde_json::to_string(&metrics)?;
+        println!("{}", json_str);
     } else {
         println!("It's a different value?!")
     }
