@@ -116,7 +116,7 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
         };
         total_task_count += 1;
     }
-    println!("=== Load test complete. ===");
+    println!("=== Load test complete ===");
     println!("TOTAL TASKS: {total_task_count}");
     println!("PASSED: {pass_count}");
     println!("FAILED: {fail_count}");
