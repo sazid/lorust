@@ -1,4 +1,4 @@
-use rhai::Dynamic;
+use rhai::{Array, Dynamic};
 use tokio::sync::{mpsc, oneshot};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -12,7 +12,7 @@ pub type Sender = mpsc::Sender<Command>;
 #[derive(Debug, Clone)]
 pub enum Value {
     Dynamic(Dynamic),
-    Array(Vec<Dynamic>),
+    Array(Array),
 }
 
 #[allow(dead_code)]
@@ -33,7 +33,7 @@ pub enum Command {
     },
     SetArray {
         key: String,
-        value: Vec<Dynamic>,
+        value: Array,
         resp: Responder<()>,
     },
     Delete {

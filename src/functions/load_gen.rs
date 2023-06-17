@@ -1,4 +1,4 @@
-use rhai::Dynamic;
+use rhai::Array;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -63,7 +63,7 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> Result {
     println!("Running load generator with the config:");
     println!("{:?}", param);
 
-    let metrics: Vec<Dynamic> = Vec::new();
+    let metrics: Array = Vec::new();
     let (resp_tx, resp_rx) = oneshot::channel();
     kv_tx
         .send(Command::SetArray {
