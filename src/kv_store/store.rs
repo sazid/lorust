@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use rhai::Dynamic;
-use tokio::sync::mpsc;
+use tokio::{sync::mpsc, task::JoinHandle};
 
 use crate::kv_store::commands::{Command, Sender, Value};
 
@@ -67,14 +67,14 @@ impl KvStore {
     }
 
     pub fn list_keys(&self) -> Vec<String> {
-        self.data.keys().map(|s| s.clone()).collect()
+        self.data.keys().cloned().collect()
     }
 }
 
-pub async fn new() -> Sender {
+pub async fn new() -> (JoinHandle<()>, Sender) {
     let (tx, mut rx) = mpsc::channel(32);
 
-    let _ = tokio::spawn(async move {
+    let manager = tokio::spawn(async move {
         let mut store = KvStore::new();
 
         // Start receiving messages
@@ -117,5 +117,5 @@ pub async fn new() -> Sender {
         }
     });
 
-    tx.clone()
+    (manager, tx)
 }

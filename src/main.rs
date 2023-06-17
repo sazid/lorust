@@ -53,9 +53,10 @@ async fn main() -> Result<()> {
     }
     "#;
     let flow: Flow = serde_json::from_str(param_str)?;
-    let kv_tx = kv_store_new().await;
+    let (kv_handle, kv_tx) = kv_store_new().await;
 
     run::run_flow(flow, kv_tx).await?;
+    kv_handle.await?;
 
     Ok(())
 }

@@ -2,13 +2,10 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use regex::Regex;
-use rhai::packages::Package;
+
 use rhai::Dynamic;
-use rhai_rand::RandomPackage;
-use tokio::sync::oneshot;
 
 use crate::flow::{Flow, Function};
-use crate::kv_store::commands::{Command, Value};
 use crate::kv_store::{commands::Sender, store::new as kv_store_new};
 
 use super::http_request;
@@ -67,7 +64,7 @@ pub async fn run_functions(functions: Vec<Function>, global_kv_tx: Sender) -> Fu
     // TODO: Instead of defining something like this, there should be proper
     // scoping mechanisms with scope names that can be referred from inside
     // functions. Maybe a graph of scopes that child scopes can refer back to?
-    let local_kv_tx = kv_store_new().await;
+    let (local_kv_handle, local_kv_tx) = kv_store_new().await;
 
     // Perform variable interpolation and execute the Functions.
     for (_, function) in functions.into_iter().enumerate() {
@@ -93,6 +90,9 @@ pub async fn run_functions(functions: Vec<Function>, global_kv_tx: Sender) -> Fu
             Function::LoadGen(_) => panic!("load gen function cannot be nested"),
         };
     }
+
+    drop(local_kv_tx);
+    local_kv_handle.await?;
 
     Ok(FunctionStatus::Passed)
 }

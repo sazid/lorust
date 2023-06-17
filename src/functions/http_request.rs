@@ -304,11 +304,12 @@ pub async fn make_request(
                 value: Dynamic::from(metric),
             })
             .await?;
-        let _ = resp_rx.await??;
+        resp_rx.await??;
     }
 
     // println!("{}", response.text().await?);
-    println!("{:#?}", param.url);
+    // println!("{:#?}", response.metrics());
+    // println!("{:#?}", param.url);
 
     Ok(FunctionStatus::Passed)
 }
