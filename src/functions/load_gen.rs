@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use rhai::Array;
 use serde::{Deserialize, Serialize};
 
@@ -138,7 +140,22 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
             .collect();
 
         let json_str = serde_json::to_string(&metrics)?;
-        println!("{}", json_str);
+
+        let (resp_tx, resp_rx) = oneshot::channel();
+        kv_tx
+            .send(Command::Get {
+                key: "metrics_output_path".into(),
+                resp: resp_tx,
+            })
+            .await?;
+        let metrics_output_path = match resp_rx.await?? {
+            Value::Dynamic(value) => value.clone_cast::<PathBuf>(),
+            Value::Array(_) => unreachable!(),
+        };
+        let metrics_output_path = metrics_output_path.join("http.json");
+
+        println!("Saving collected metrics to: {:?}", metrics_output_path);
+        std::fs::write(metrics_output_path, json_str)?;
     } else {
         println!("It's a different value?!")
     }
