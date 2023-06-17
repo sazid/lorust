@@ -76,5 +76,114 @@ Printing first 3 entries
 ```
 
 ```json
-[{"url":"https://reqres.in/api/users?page=1","http_verb":"GET","status_code":200,"response_body_size":996,"time_stamp":"2023-06-17 18:41:47.572695000","response_body":"","upload_total":0,"download_total":368,"upload_speed":0.0,"download_speed":339.0,"namelookup_time":{"secs":1,"nanos":27096000},"connect_time":{"secs":0,"nanos":6369000},"tls_handshake_time":{"secs":0,"nanos":35801000},"starttransfer_time":{"secs":1,"nanos":83679000},"elapsed_time":{"secs":1,"nanos":83827000},"redirect_time":{"secs":0,"nanos":0}},{"url":"https://reqres.in/api/users/3","http_verb":"GET","status_code":200,"response_body_size":274,"time_stamp":"2023-06-17 18:41:48.660536000","response_body":"","upload_total":0,"download_total":208,"upload_speed":0.0,"download_speed":7407.0,"namelookup_time":{"secs":0,"nanos":1638000},"connect_time":{"secs":0,"nanos":5441000},"tls_handshake_time":{"secs":0,"nanos":8274000},"starttransfer_time":{"secs":0,"nanos":27956000},"elapsed_time":{"secs":0,"nanos":28080000},"redirect_time":{"secs":0,"nanos":0}},{"url":"https://reqres.in/api/users?page=1","http_verb":"GET","status_code":200,"response_body_size":996,"time_stamp":"2023-06-17 18:41:48.572680000","response_body":"","upload_total":0,"download_total":368,"upload_speed":0.0,"download_speed":344.0,"namelookup_time":{"secs":0,"nanos":27449000},"connect_time":{"secs":1,"nanos":15540000},"tls_handshake_time":{"secs":0,"nanos":9175000},"starttransfer_time":{"secs":1,"nanos":67105000},"elapsed_time":{"secs":1,"nanos":67367000},"redirect_time":{"secs":0,"nanos":0}}]
+[
+    {
+        "url": "https://reqres.in/api/users?page=1",
+        "http_verb": "GET",
+        "status_code": 200,
+        "response_body_size": 996,
+        "time_stamp": "2023-06-17 18:41:47.572695000",
+        "response_body": "",
+        "upload_total": 0,
+        "download_total": 368,
+        "upload_speed": 0.0,
+        "download_speed": 339.0,
+        "namelookup_time": {
+            "secs": 1,
+            "nanos": 27096000
+        },
+        "connect_time": {
+            "secs": 0,
+            "nanos": 6369000
+        },
+        "tls_handshake_time": {
+            "secs": 0,
+            "nanos": 35801000
+        },
+        "starttransfer_time": {
+            "secs": 1,
+            "nanos": 83679000
+        },
+        "elapsed_time": {
+            "secs": 1,
+            "nanos": 83827000
+        },
+        "redirect_time": {
+            "secs": 0,
+            "nanos": 0
+        }
+    },
+    {
+        "url": "https://reqres.in/api/users/3",
+        "http_verb": "GET",
+        "status_code": 200,
+        "response_body_size": 274,
+        "time_stamp": "2023-06-17 18:41:48.660536000",
+        "response_body": "",
+        "upload_total": 0,
+        "download_total": 208,
+        "upload_speed": 0.0,
+        "download_speed": 7407.0,
+        "namelookup_time": {
+            "secs": 0,
+            "nanos": 1638000
+        },
+        "connect_time": {
+            "secs": 0,
+            "nanos": 5441000
+        },
+        "tls_handshake_time": {
+            "secs": 0,
+            "nanos": 8274000
+        },
+        "starttransfer_time": {
+            "secs": 0,
+            "nanos": 27956000
+        },
+        "elapsed_time": {
+            "secs": 0,
+            "nanos": 28080000
+        },
+        "redirect_time": {
+            "secs": 0,
+            "nanos": 0
+        }
+    },
+    {
+        "url": "https://reqres.in/api/users?page=1",
+        "http_verb": "GET",
+        "status_code": 200,
+        "response_body_size": 996,
+        "time_stamp": "2023-06-17 18:41:48.572680000",
+        "response_body": "",
+        "upload_total": 0,
+        "download_total": 368,
+        "upload_speed": 0.0,
+        "download_speed": 344.0,
+        "namelookup_time": {
+            "secs": 0,
+            "nanos": 27449000
+        },
+        "connect_time": {
+            "secs": 1,
+            "nanos": 15540000
+        },
+        "tls_handshake_time": {
+            "secs": 0,
+            "nanos": 9175000
+        },
+        "starttransfer_time": {
+            "secs": 1,
+            "nanos": 67105000
+        },
+        "elapsed_time": {
+            "secs": 1,
+            "nanos": 67367000
+        },
+        "redirect_time": {
+            "secs": 0,
+            "nanos": 0
+        }
+    }
+]
 ```
