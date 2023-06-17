@@ -17,7 +17,7 @@ async fn main() -> Result<()> {
             {
                 "LoadGen": {
                     "spawn_rate": "1",
-                    "timeout": 5,
+                    "timeout": 1,
                     "functions_to_execute": [
                         {
                             "HttpRequest": {
@@ -26,6 +26,11 @@ async fn main() -> Result<()> {
                                     ["X-API-KEY", "d0808976-8be4-4d80-8d9d-5806f4ebb87c"]
                                 ],
                                 "timeout": 300
+                            }
+                        },
+                        {
+                            "RunRhaiCode": {
+                                "code": "print(http_status_code);"
                             }
                         }
                     ]

@@ -45,4 +45,7 @@ pub enum Command {
         value: Dynamic,
         resp: Responder<()>,
     },
+    ListKeys {
+        resp: Responder<Vec<String>>,
+    },
 }

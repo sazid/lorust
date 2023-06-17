@@ -65,6 +65,10 @@ impl KvStore {
     pub fn clear(&mut self) {
         self.data.clear();
     }
+
+    pub fn list_keys(&self) -> Vec<String> {
+        self.data.keys().map(|s| s.clone()).collect()
+    }
 }
 
 pub async fn new() -> Sender {
@@ -104,6 +108,10 @@ pub async fn new() -> Sender {
                 Command::SetArray { key, value, resp } => {
                     store.set(key, Value::Array(value));
                     let _ = resp.send(empty_ok);
+                }
+                Command::ListKeys { resp } => {
+                    let keys = store.list_keys();
+                    let _ = resp.send(Ok(keys));
                 }
             }
         }
