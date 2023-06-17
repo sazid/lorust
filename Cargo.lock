@@ -551,6 +551,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "518ef76f2f87365916b142844c16d8fefd85039bc5699050210a7778ee1cd1de"
 
 [[package]]
+name = "lorust"
+version = "0.1.0"
+dependencies = [
+ "async-recursion",
+ "chrono",
+ "form-data-builder",
+ "futures",
+ "isahc",
+ "parking_lot",
+ "regex",
+ "rhai",
+ "rhai-rand",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "url_encoded_data",
+]
+
+[[package]]
 name = "memchr"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1412,23 +1432,3 @@ name = "windows_x86_64_msvc"
 version = "0.48.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1a515f5799fe4961cb532f983ce2b23082366b898e52ffbce459c86f67c8378a"
-
-[[package]]
-name = "zeuz_node_native"
-version = "0.1.0"
-dependencies = [
- "async-recursion",
- "chrono",
- "form-data-builder",
- "futures",
- "isahc",
- "parking_lot",
- "regex",
- "rhai",
- "rhai-rand",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "url_encoded_data",
-]

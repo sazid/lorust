@@ -1,4 +1,6 @@
-# ZeuZ Node Native
+# LoRust
+
+> **Lo**ad generator **Rust**
 
 A load generator tool written in Rust. Currently supports
 http api calls and custom scripting support with Rhai.
