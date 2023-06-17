@@ -2,7 +2,9 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use regex::Regex;
+use rhai::packages::Package;
 use rhai::Dynamic;
+use rhai_rand::RandomPackage;
 use tokio::sync::oneshot;
 
 use crate::flow::{Flow, Function};
@@ -42,17 +44,9 @@ async fn interpolate_variables(input: &str, local_kv_tx: Sender) -> Result<Cow<'
     for key in re.find_iter(input) {
         let key = key.as_str();
         let key = &key[2..key.len() - 2];
-        let (resp_tx, resp_rx) = oneshot::channel();
-        local_kv_tx
-            .send(Command::Get {
-                key: key.into(),
-                resp: resp_tx,
-            })
-            .await?;
-        let value = match resp_rx.await?? {
-            Value::Dynamic(value) => value,
-            Value::Array(array) => Dynamic::from_array(array),
-        };
+
+        let value = rhai_code::eval_rhai_code(key, local_kv_tx.clone()).await?;
+
         map.insert(key, value);
     }
 

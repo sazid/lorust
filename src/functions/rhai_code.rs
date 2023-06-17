@@ -29,22 +29,20 @@ fn min(a: i64, b: i64) -> i64 {
     }
 }
 
-pub async fn run_rhai_code(
-    param: RhaiCodeParam,
-    _global_kv_tx: Sender,
-    local_kv_tx: Sender,
-) -> FunctionResult {
+async fn init_engine_and_scope(
+    local_kv_tx: &tokio::sync::mpsc::Sender<Command>,
+) -> std::result::Result<
+    (rhai::Engine, rhai::Scope<'static, 8>),
+    Box<dyn std::error::Error + Send + Sync>,
+> {
     let mut engine = rhai::Engine::new();
     engine.register_fn("max", max);
     engine.register_fn("min", min);
-
-    // Get the keys
     let (resp_tx, resp_rx) = oneshot::channel();
     local_kv_tx
         .send(Command::ListKeys { resp: resp_tx })
         .await?;
     let keys = resp_rx.await??;
-
     let mut scope = rhai::Scope::new();
     for key in keys {
         let (resp_tx, resp_rx) = oneshot::channel();
@@ -70,12 +68,17 @@ pub async fn run_rhai_code(
         }
         scope.set_or_push(key, value);
     }
-
-    // Create new 'RandomPackage' instance
     let random = RandomPackage::new();
-
-    // Load the package into the `Engine`
     random.register_into_engine(&mut engine);
+    Ok((engine, scope))
+}
+
+pub async fn run_rhai_code(
+    param: RhaiCodeParam,
+    _global_kv_tx: Sender,
+    local_kv_tx: Sender,
+) -> FunctionResult {
+    let (engine, mut scope) = init_engine_and_scope(&local_kv_tx).await?;
 
     // Run the code
     engine.run_with_scope(&mut scope, &param.code)?;
@@ -93,4 +96,11 @@ pub async fn run_rhai_code(
     }
 
     Ok(FunctionStatus::Passed)
+}
+
+pub async fn eval_rhai_code(code: &str, local_kv_tx: Sender) -> Result<Dynamic> {
+    let (engine, mut scope) = init_engine_and_scope(&local_kv_tx).await?;
+
+    // Run the code
+    Ok(engine.eval_with_scope::<Dynamic>(&mut scope, code)?)
 }
