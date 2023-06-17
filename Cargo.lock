@@ -792,6 +792,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "rhai-rand"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e522e2e40423976c52e856efd08b2aa4b4a2b476b6332a76195eafd573dc4c37"
+dependencies = [
+ "rand",
+ "rhai",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "rhai_codegen"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1386,6 +1398,7 @@ dependencies = [
  "isahc",
  "parking_lot",
  "rhai",
+ "rhai-rand",
  "serde",
  "serde_json",
  "thiserror",

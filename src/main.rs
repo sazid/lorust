@@ -27,7 +27,7 @@ async fn main() -> Result<()> {
                         },
                         {
                             "RunRhaiCode": {
-                                "code": "print(http_status_code);"
+                                "code": "print(http_response[\"data\"].sample());"
                             }
                         }
                     ]

@@ -1,3 +1,6 @@
+use rhai::packages::Package;
+use rhai::Dynamic;
+use rhai_rand::RandomPackage;
 use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
 
@@ -52,13 +55,29 @@ pub async fn run_rhai_code(
             })
             .await?;
         let value = resp_rx.await??;
-        let value = match value {
+        let mut value = match value {
             Value::Dynamic(val) => val,
-            Value::Array(_) => continue,
+            Value::Array(val) => Dynamic::from_array(val),
         };
+
+        // If it's a json string, we try to convert it to a rhai::Map,
+        // otherwise just store the plain string.
+        if value.is::<String>() {
+            value = match engine.parse_json(value.clone_cast::<String>(), true) {
+                Ok(map) => Dynamic::from_map(map),
+                _ => value,
+            };
+        }
         scope.set_or_push(key, value);
     }
 
+    // Create new 'RandomPackage' instance
+    let random = RandomPackage::new();
+
+    // Load the package into the `Engine`
+    random.register_into_engine(&mut engine);
+
+    // Run the code
     engine.run_with_scope(&mut scope, &param.code)?;
 
     for (key, _is_constant, value) in scope.iter() {
