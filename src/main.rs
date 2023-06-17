@@ -27,7 +27,12 @@ async fn main() -> Result<()> {
                         },
                         {
                             "RunRhaiCode": {
-                                "code": "print(http_response[\"data\"].sample());"
+                                "code": "let email = http_response[\"data\"].sample().email;"
+                            }
+                        },
+                        {
+                            "RunRhaiCode": {
+                                "code": "print(email);"
                             }
                         }
                     ]
