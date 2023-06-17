@@ -11,6 +11,23 @@ change to support other config formats such as TOML, etc. depending
 on whether they'll be able to meet the needs and make the config
 more human readable.
 
+Example `HttpRequest`
+
+```json
+{
+    "HttpRequest": {
+        "method": "POST",
+        "url": "https://reqres.in/api/users?page=1",
+        "headers": [
+            ["access_token", "32808ft6-21e4-4gh0-8dad-2348987838"]
+        ],
+        "body": "...",
+        "redirect_limit": 5,
+        "timeout": 300
+    }
+}
+```
+
 Example config (this will likely change):
 
 ```json
