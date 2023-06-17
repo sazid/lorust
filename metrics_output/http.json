@@ -1,1 +1,146 @@
-[{"url":"https://reqres.in/api/users?page=1","http_verb":"GET","status_code":200,"response_body_size":996,"time_stamp":"2023-06-17 20:33:33.563805000","response_body":"","upload_total":0,"download_total":368,"upload_speed":0.0,"download_speed":7798.0,"namelookup_time":{"secs":0,"nanos":4896000},"connect_time":{"secs":0,"nanos":5727000},"tls_handshake_time":{"secs":0,"nanos":25092000},"starttransfer_time":{"secs":0,"nanos":46893000},"elapsed_time":{"secs":0,"nanos":47187000},"redirect_time":{"secs":0,"nanos":0}},{"url":"https://reqres.in/api/users/6","http_verb":"GET","status_code":200,"response_body_size":280,"time_stamp":"2023-06-17 20:33:33.623990000","response_body":"","upload_total":0,"download_total":206,"upload_speed":0.0,"download_speed":8330.0,"namelookup_time":{"secs":0,"nanos":1562000},"connect_time":{"secs":0,"nanos":5646000},"tls_handshake_time":{"secs":0,"nanos":5757000},"starttransfer_time":{"secs":0,"nanos":24470000},"elapsed_time":{"secs":0,"nanos":24729000},"redirect_time":{"secs":0,"nanos":0}},{"url":"https://reqres.in/api/users?page=1","http_verb":"GET","status_code":200,"response_body_size":996,"time_stamp":"2023-06-17 20:33:34.562589000","response_body":"","upload_total":0,"download_total":368,"upload_speed":0.0,"download_speed":10022.0,"namelookup_time":{"secs":0,"nanos":1354000},"connect_time":{"secs":0,"nanos":13976000},"tls_handshake_time":{"secs":0,"nanos":9228000},"starttransfer_time":{"secs":0,"nanos":36406000},"elapsed_time":{"secs":0,"nanos":36718000},"redirect_time":{"secs":0,"nanos":0}}]
+[
+    {
+        "url": "https://reqres.in/api/users?page=1",
+        "http_verb": "GET",
+        "status_code": 200,
+        "response_body_size": 996,
+        "time_stamp": "2023-06-17 20:37:23.403223000",
+        "response_body": "",
+        "upload_total": 0,
+        "download_total": 368,
+        "upload_speed": 0.0,
+        "download_speed": 5473.0,
+        "namelookup_time": {
+            "secs": 0,
+            "nanos": 7696000
+        },
+        "connect_time": {
+            "secs": 0,
+            "nanos": 6075000
+        },
+        "tls_handshake_time": {
+            "secs": 0,
+            "nanos": 36680000
+        },
+        "starttransfer_time": {
+            "secs": 0,
+            "nanos": 67121000
+        },
+        "elapsed_time": {
+            "secs": 0,
+            "nanos": 67229000
+        },
+        "redirect_time": {
+            "secs": 0,
+            "nanos": 0
+        }
+    },
+    {
+        "url": "https://reqres.in/api/users/1",
+        "http_verb": "GET",
+        "status_code": 200,
+        "response_body_size": 280,
+        "time_stamp": "2023-06-17 20:37:23.473651000",
+        "response_body": "",
+        "upload_total": 0,
+        "download_total": 209,
+        "upload_speed": 0.0,
+        "download_speed": 8544.0,
+        "namelookup_time": {
+            "secs": 0,
+            "nanos": 1549000
+        },
+        "connect_time": {
+            "secs": 0,
+            "nanos": 5734000
+        },
+        "tls_handshake_time": {
+            "secs": 0,
+            "nanos": 5610000
+        },
+        "starttransfer_time": {
+            "secs": 0,
+            "nanos": 24355000
+        },
+        "elapsed_time": {
+            "secs": 0,
+            "nanos": 24461000
+        },
+        "redirect_time": {
+            "secs": 0,
+            "nanos": 0
+        }
+    },
+    {
+        "url": "https://reqres.in/api/users?page=1",
+        "http_verb": "GET",
+        "status_code": 200,
+        "response_body_size": 996,
+        "time_stamp": "2023-06-17 20:37:24.401958000",
+        "response_body": "",
+        "upload_total": 0,
+        "download_total": 368,
+        "upload_speed": 0.0,
+        "download_speed": 7465.0,
+        "namelookup_time": {
+            "secs": 0,
+            "nanos": 2925000
+        },
+        "connect_time": {
+            "secs": 0,
+            "nanos": 14979000
+        },
+        "tls_handshake_time": {
+            "secs": 0,
+            "nanos": 9640000
+        },
+        "starttransfer_time": {
+            "secs": 0,
+            "nanos": 49135000
+        },
+        "elapsed_time": {
+            "secs": 0,
+            "nanos": 49294000
+        },
+        "redirect_time": {
+            "secs": 0,
+            "nanos": 0
+        }
+    },
+    {
+        "url": "https://reqres.in/api/users/1",
+        "http_verb": "GET",
+        "status_code": 200,
+        "response_body_size": 280,
+        "time_stamp": "2023-06-17 20:37:24.454724000",
+        "response_body": "",
+        "upload_total": 0,
+        "download_total": 209,
+        "upload_speed": 0.0,
+        "download_speed": 6241.0,
+        "namelookup_time": {
+            "secs": 0,
+            "nanos": 1515000
+        },
+        "connect_time": {
+            "secs": 0,
+            "nanos": 7125000
+        },
+        "tls_handshake_time": {
+            "secs": 0,
+            "nanos": 6459000
+        },
+        "starttransfer_time": {
+            "secs": 0,
+            "nanos": 33333000
+        },
+        "elapsed_time": {
+            "secs": 0,
+            "nanos": 33485000
+        },
+        "redirect_time": {
+            "secs": 0,
+            "nanos": 0
+        }
+    }
+]

@@ -132,10 +132,8 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
 
     if let Value::Array(metrics) = metrics {
         println!("Collected metrics array size: {:?}", metrics.len());
-        println!("Printing first 3 entries");
         let metrics: Vec<HttpMetric> = metrics
             .iter()
-            .take(3)
             .map(|x| x.clone_cast::<HttpMetric>())
             .collect();
 
