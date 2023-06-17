@@ -61,7 +61,9 @@ fn eval_task_count(
 
 pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
     println!("Running load generator with the config:");
-    println!("{:?}", param);
+    let mut config_display = param.clone();
+    config_display.functions_to_execute = Vec::new();
+    println!("{:?}", config_display);
 
     let metrics: Array = Vec::new();
     let (resp_tx, resp_rx) = oneshot::channel();
