@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
-use std::str::FromStr;
 
 use regex::Regex;
 use rhai::Dynamic;
@@ -35,13 +34,14 @@ pub async fn run_loadgen(functions: Vec<Function>, kv_tx: Sender) -> FunctionRes
 }
 
 async fn interpolate_variables(input: &str, local_kv_tx: Sender) -> Result<Cow<'_, str>> {
-    let mut values: BTreeMap<&str, Dynamic> = BTreeMap::new();
+    let mut map: BTreeMap<&str, Dynamic> = BTreeMap::new();
 
     let re = Regex::new(r"%\|(.+?)\|%").unwrap();
 
     // Fill the values map with the key names.
     for key in re.find_iter(input) {
         let key = key.as_str();
+        let key = &key[2..key.len() - 2];
         let (resp_tx, resp_rx) = oneshot::channel();
         local_kv_tx
             .send(Command::Get {
@@ -53,18 +53,17 @@ async fn interpolate_variables(input: &str, local_kv_tx: Sender) -> Result<Cow<'
             Value::Dynamic(value) => value,
             Value::Array(array) => Dynamic::from_array(array),
         };
-        values.insert(key, value);
+        map.insert(key, value);
     }
 
     // Replace the key names with their corresponding string values
     let replaced = re.replace_all(input, |caps: &regex::Captures| {
         let key = &caps[1];
-        values
-            .get(key)
-            .cloned()
-            .unwrap_or(Dynamic::from_str(&format!("NO_SUCH_VARIABLE:{key}")).unwrap())
-            .into_string()
-            .unwrap()
+
+        match map.get(key).cloned() {
+            Some(value) => value.to_string(),
+            None => format!("NO_SUCH_VARIABLE:{key}"),
+        }
     });
 
     Ok(replaced)

@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
                         },
                         {
                             "RunRhaiCode": {
-                                "code": "print(\"Picked user: \" + user_id);"
+                                "code": "print(\"Picked user_id: \" + user_id);"
                             }
                         },
                         {
