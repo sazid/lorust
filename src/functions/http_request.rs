@@ -147,7 +147,7 @@ pub async fn make_request(
     param: HttpRequestParam,
     global_kv_tx: Sender,
     local_kv_tx: Sender,
-) -> Result {
+) -> FunctionResult {
     // Check if the load_gen_metrics is set.
     let (resp_tx, resp_rx) = oneshot::channel();
     global_kv_tx
@@ -308,7 +308,7 @@ pub async fn make_request(
     }
 
     // println!("{}", response.text().await?);
-    println!("{:#?}", response.metrics().unwrap());
+    println!("{:#?}", param.url);
 
-    Ok(FunctionResult::Passed)
+    Ok(FunctionStatus::Passed)
 }

@@ -33,7 +33,7 @@ pub async fn run_rhai_code(
     param: RhaiCodeParam,
     _global_kv_tx: Sender,
     local_kv_tx: Sender,
-) -> Result {
+) -> FunctionResult {
     let mut engine = rhai::Engine::new();
     engine.register_fn("max", max);
     engine.register_fn("min", min);
@@ -92,5 +92,5 @@ pub async fn run_rhai_code(
         resp_rx.await??;
     }
 
-    Ok(FunctionResult::Passed)
+    Ok(FunctionStatus::Passed)
 }

@@ -59,7 +59,7 @@ fn eval_task_count(
     Ok(result)
 }
 
-pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> Result {
+pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
     println!("Running load generator with the config:");
     println!("{:?}", param);
 
@@ -107,8 +107,8 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> Result {
     let mut total_task_count = 0;
     for task_result in futures::future::join_all(tasks).await {
         match task_result?? {
-            FunctionResult::Failed => fail_count += 1,
-            FunctionResult::Passed => pass_count += 1,
+            FunctionStatus::Failed => fail_count += 1,
+            FunctionStatus::Passed => pass_count += 1,
         };
         total_task_count += 1;
     }
@@ -141,5 +141,5 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> Result {
         println!("It's a different value?!")
     }
 
-    Ok(FunctionResult::Passed)
+    Ok(FunctionStatus::Passed)
 }

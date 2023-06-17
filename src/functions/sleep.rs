@@ -12,9 +12,9 @@ pub struct SleepParam {
     duration: u64,
 }
 
-pub async fn sleep(param: SleepParam, _kv_tx: Sender) -> Result {
+pub async fn sleep(param: SleepParam, _kv_tx: Sender) -> FunctionResult {
     println!("Sleeping for {} secs", param.duration);
     time::sleep(Duration::from_secs(param.duration)).await;
 
-    Ok(FunctionResult::Passed)
+    Ok(FunctionStatus::Passed)
 }

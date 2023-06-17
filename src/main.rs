@@ -27,12 +27,23 @@ async fn main() -> Result<()> {
                         },
                         {
                             "RunRhaiCode": {
-                                "code": "let email = http_response[\"data\"].sample().email;"
+                                "code": "let user_id = http_response[\"data\"].sample().id;"
                             }
                         },
                         {
                             "RunRhaiCode": {
-                                "code": "print(email);"
+                                "code": "print(\"Picked user: \" + user_id);"
+                            }
+                        },
+                        {
+                            "HttpRequest": {
+                                "url": "https://reqres.in/api/users/%|user_id|%",
+                                "timeout": 300
+                            }
+                        },
+                        {
+                            "RunRhaiCode": {
+                                "code": "let data = http_response.data; print(data.first_name + \" \" + data.last_name);"
                             }
                         }
                     ]
