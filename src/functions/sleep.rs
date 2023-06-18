@@ -9,12 +9,13 @@ use super::result::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SleepParam {
-    duration: u64,
+    duration: String,
 }
 
 pub async fn sleep(param: SleepParam, _kv_tx: Sender) -> FunctionResult {
     println!("Sleeping for {} secs", param.duration);
-    time::sleep(Duration::from_secs(param.duration)).await;
+    let duration = param.duration.parse::<u64>()?;
+    time::sleep(Duration::from_secs(duration)).await;
 
     Ok(FunctionStatus::Passed)
 }
