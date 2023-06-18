@@ -288,12 +288,12 @@ pub async fn make_request(
             upload_speed: http_metrics.upload_speed(),
             download_speed: http_metrics.download_speed(),
 
-            namelookup_time: http_metrics.name_lookup_time().as_micros(),
-            connect_time: http_metrics.connect_time().as_micros(),
-            tls_handshake_time: http_metrics.secure_connect_time().as_micros(),
-            starttransfer_time: http_metrics.transfer_start_time().as_micros(),
-            elapsed_time: http_metrics.total_time().as_micros(),
-            redirect_time: http_metrics.redirect_time().as_micros(),
+            namelookup_time: http_metrics.name_lookup_time().as_millis(),
+            connect_time: http_metrics.connect_time().as_millis(),
+            tls_handshake_time: http_metrics.secure_connect_time().as_millis(),
+            starttransfer_time: http_metrics.transfer_start_time().as_millis(),
+            elapsed_time: http_metrics.total_time().as_millis(),
+            redirect_time: http_metrics.redirect_time().as_millis(),
         };
 
         let (resp_tx, resp_rx) = oneshot::channel();
