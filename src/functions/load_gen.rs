@@ -130,11 +130,11 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
         .await?;
     let metrics = resp_rx.await??;
 
-    if let Value::Array(metrics) = metrics {
+    if let Value::Array(mut metrics) = metrics {
         println!("Collected metrics array size: {:?}", metrics.len());
         let metrics: Vec<HttpMetric> = metrics
-            .iter()
-            .map(|x| x.clone_cast::<HttpMetric>())
+            .iter_mut()
+            .map(|x| x.take().cast::<HttpMetric>())
             .collect();
 
         let json_str = serde_json::to_string(&metrics)?;

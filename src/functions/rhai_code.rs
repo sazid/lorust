@@ -29,6 +29,8 @@ fn min(a: i64, b: i64) -> i64 {
     }
 }
 
+/// Initializes the scope with all the variables from the kv store and registers
+/// some necessary functions to the engine.
 async fn init_engine_and_scope(
     local_kv_tx: &tokio::sync::mpsc::Sender<Command>,
 ) -> std::result::Result<
@@ -61,7 +63,7 @@ async fn init_engine_and_scope(
         // If it's a json string, we try to convert it to a rhai::Map,
         // otherwise just store the plain string.
         if value.is::<String>() {
-            value = match engine.parse_json(value.clone_cast::<String>(), true) {
+            value = match engine.parse_json(value.take().cast::<String>(), true) {
                 Ok(map) => Dynamic::from_map(map),
                 _ => value,
             };
@@ -80,9 +82,10 @@ pub async fn run_rhai_code(
 ) -> FunctionResult {
     let (engine, mut scope) = init_engine_and_scope(&local_kv_tx).await?;
 
-    // Run the code
+    // Run the code.
     engine.run_with_scope(&mut scope, &param.code)?;
 
+    // Read all the variables and store/overwrite them in the store.
     for (key, _is_constant, value) in scope.iter() {
         let (resp_tx, resp_rx) = oneshot::channel();
         local_kv_tx
