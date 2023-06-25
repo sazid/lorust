@@ -5,6 +5,15 @@
 A load generator tool written in Rust. Currently supports
 http api calls and custom scripting support with Rhai.
 
+## Build
+
+```sh
+$ cargo build --release
+$ target/release/lorust --help
+```
+
+## Usage
+
 **Note**: The API to the outside world has not been determined yet.
 Currently, only json based config is supported but this may also
 change to support other config formats such as TOML, etc. depending
