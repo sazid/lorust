@@ -27,9 +27,11 @@ jobs:
       run: cargo build --release --verbose
 
     - name: Set the binary name
+      shell: bash
       run: echo "BINARY_NAME=$(python -c "import platform; uname=platform.uname(); print(f'lorust_{uname.system}_{uname.machine}.exe')")" >> "$GITHUB_ENV"
 
     - name: Renmae the built binary
+      shell: bash
       run: mv target/release/lorust ./$BINARY_NAME
 
     - name: Upload a Build Artifact
