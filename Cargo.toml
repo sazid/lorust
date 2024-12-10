@@ -8,16 +8,16 @@ edition = "2021"
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 isahc = { version = "1.7.2", features = ["http2", "static-curl", "static-ssl", "text-decoding", "json", "cookies"] }
-serde = { version = "1.0.163", features = ["default", "derive"] }
-serde_json = { version = "1.0.96", features = ["std", "preserve_order"] }
+serde = { version = "1.0.215", features = ["default", "derive"] }
+serde_json = { version = "1.0.133", features = ["std", "preserve_order"] }
 form-data-builder = "1.0.1"
 url_encoded_data = "0.6.1"
-thiserror = "1.0.40"
+thiserror = "1.0.69"
 async-recursion = "1.0.4"
 rhai = { version = "1", features = ["serde", "sync"] }
-rhai-rand = "0.1.5"
-futures = "0.3.28"
-parking_lot = "0.12.1"
-chrono = "0.4.26"
-regex = "1.8.4"
-clap = { version = "4.3.4", features = ["derive"] }
+rhai-rand = "0.1.6"
+futures = "0.3.31"
+parking_lot = "0.12.3"
+chrono = "0.4.39"
+regex = "1.11.1"
+clap = { version = "4.5.23", features = ["derive"] }
