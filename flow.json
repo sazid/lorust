@@ -2,18 +2,27 @@
     "functions": [
         {
             "LoadGen": {
-                "spawn_rate": "1",
-                "timeout": 1,
+                "spawn_rate": "2",
+                "timeout": 3,
                 "functions_to_execute": [
                     {
                         "HttpRequest": {
+                            "method": "GET",
                             "url": "https://reqres.in/api/users?page=1",
-                            "timeout": 300
+                            "headers": [
+                                [
+                                    "Content-Type",
+                                    "application/json"
+                                ]
+                            ],
+                            "body": "Empty",
+                            "redirect_limit": null,
+                            "timeout": 60
                         }
                     },
                     {
                         "RunRhaiCode": {
-                            "code": "let user_id = http_response[\"data\"].sample().id;"
+                            "code": "let user_id = http_response[\"data\"].id;"
                         }
                     },
                     {
@@ -23,13 +32,22 @@
                     },
                     {
                         "HttpRequest": {
+                            "method": "GET",
                             "url": "https://reqres.in/api/users/%|user_id|%",
-                            "timeout": 300
+                            "headers": [
+                                [
+                                    "Content-Type",
+                                    "application/json"
+                                ]
+                            ],
+                            "body": "Empty",
+                            "redirect_limit": null,
+                            "timeout": 60
                         }
                     },
                     {
                         "RunRhaiCode": {
-                            "code": "let data = http_response.data; print(data.first_name + \" \" + data.last_name);"
+                            "code": "let data = http_response.data;\nprint(data.first_name + \" \" + data.last_name);"
                         }
                     }
                 ]
