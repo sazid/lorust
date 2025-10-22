@@ -17,11 +17,11 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v5
 
-    - uses: actions/setup-python@v4
+    - uses: actions/setup-python@v6
       with:
-        python-version: '3.11'
+        python-version: '3.13'
 
     - name: Build
       run: cargo build --release --verbose
@@ -35,7 +35,7 @@ jobs:
       run: mv target/release/lorust ./$BINARY_NAME
 
     - name: Upload a Build Artifact
-      uses: actions/upload-artifact@v3.1.3
+      uses: actions/upload-artifact@v4
       with:
         # Artifact name
         name: ${{ env.BINARY_NAME }}
