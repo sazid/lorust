@@ -46,8 +46,8 @@ fn min(a: i64, b: i64) -> i64 {
 
 fn eval_task_count(
     expression: &str,
-    tick: u64,
-) -> std::result::Result<u64, Box<dyn std::error::Error + Send + Sync>> {
+    tick: i64,
+) -> std::result::Result<i64, Box<dyn std::error::Error + Send + Sync>> {
     let mut engine = rhai::Engine::new();
     engine.register_fn("max", max);
     engine.register_fn("min", min);
@@ -91,7 +91,7 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
         )));
 
         let spawn_rate = eval_task_count(&param.spawn_rate, tick)?;
-        if (i + 1) % spawn_rate == 0 {
+        if (i + 1) % (spawn_rate as u64) == 0 {
             sleep(Duration::from_secs(1)).await;
             tick += 1;
         }
