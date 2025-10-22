@@ -145,6 +145,7 @@ pub struct HttpRequestParam {
 
 pub async fn make_request(
     param: HttpRequestParam,
+    timeout: Option<Duration>,
     global_kv_tx: Sender,
     local_kv_tx: Sender,
 ) -> FunctionResult {
@@ -158,8 +159,15 @@ pub async fn make_request(
         .await?;
     let should_collect_metrics = resp_rx.await??;
 
+    // timeout from the parameters of this request
+    let param_timeout = Duration::from_secs(param.timeout.unwrap_or(60));
+    let timeout = match timeout {
+        Some(t) => std::cmp::min(param_timeout, t),
+        None => param_timeout,
+    };
+
     let client = HttpClient::builder()
-        .timeout(Duration::from_secs(param.timeout.unwrap_or(60)))
+        .timeout(timeout)
         .metrics(should_collect_metrics)
         .redirect_policy(RedirectPolicy::Limit(param.redirect_limit.unwrap_or(5)))
         .cookies()

@@ -1,9 +1,11 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 use regex::Regex;
 
 use rhai::Dynamic;
+use tokio::time::Instant;
 
 use crate::flow::{Flow, Function};
 use crate::kv_store::{commands::Sender, store::new as kv_store_new};
@@ -60,14 +62,24 @@ async fn interpolate_variables(input: &str, local_kv_tx: Sender) -> Result<Cow<'
     Ok(replaced)
 }
 
-pub async fn run_functions(functions: Vec<Function>, global_kv_tx: Sender) -> FunctionResult {
+pub async fn run_functions(
+    functions: Vec<Function>,
+    global_kv_tx: Sender,
+    timeout: u64,
+) -> FunctionResult {
     // TODO: Instead of defining something like this, there should be proper
     // scoping mechanisms with scope names that can be referred from inside
     // functions. Maybe a graph of scopes that child scopes can refer back to?
     let (local_kv_handle, local_kv_tx) = kv_store_new().await;
 
+    let end_time = Instant::now() + Duration::from_secs(timeout);
+
     // Perform variable interpolation and execute the Functions.
     for (_, function) in functions.into_iter().enumerate() {
+        if Instant::now() >= end_time {
+            break;
+        }
+
         // 1. Convert the Function a string.
         let function: String = serde_json::to_string(&function)?;
 
@@ -78,12 +90,20 @@ pub async fn run_functions(functions: Vec<Function>, global_kv_tx: Sender) -> Fu
         let function: Function = serde_json::from_str(&function)?;
 
         // 4. Execute the Function.
+        let remaining_time = Some(end_time - Instant::now());
         match function {
             Function::HttpRequest(param) => {
-                http_request::make_request(param.clone(), global_kv_tx.clone(), local_kv_tx.clone())
-                    .await?
+                http_request::make_request(
+                    param.clone(),
+                    remaining_time,
+                    global_kv_tx.clone(),
+                    local_kv_tx.clone(),
+                )
+                .await?
             }
-            Function::Sleep(param) => sleep::sleep(param.clone(), global_kv_tx.clone()).await?,
+            Function::Sleep(param) => {
+                sleep::sleep(param.clone(), remaining_time, global_kv_tx.clone()).await?
+            }
             Function::RunRhaiCode(param) => {
                 rhai_code::run_rhai_code(param, global_kv_tx.clone(), local_kv_tx.clone()).await?
             }

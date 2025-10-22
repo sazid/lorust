@@ -11,7 +11,7 @@ use crate::{
 
 use tokio::{
     sync::oneshot,
-    time::{interval, Duration, Instant},
+    time::{sleep, Duration},
 };
 
 use super::result::*;
@@ -46,8 +46,8 @@ fn min(a: i64, b: i64) -> i64 {
 
 fn eval_task_count(
     expression: &str,
-    tick: i64,
-) -> std::result::Result<i64, Box<dyn std::error::Error + Send + Sync>> {
+    tick: u64,
+) -> std::result::Result<u64, Box<dyn std::error::Error + Send + Sync>> {
     let mut engine = rhai::Engine::new();
     engine.register_fn("max", max);
     engine.register_fn("min", min);
@@ -80,29 +80,20 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
 
     let mut tasks = Vec::new();
 
-    let timeout_time = Instant::now() + Duration::from_secs(param.timeout);
-    let mut interval = interval(Duration::from_secs(1));
-    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-    let mut tick = 0_i64;
-    while Instant::now() <= timeout_time {
-        interval.tick().await;
-        tick += 1;
+    let mut tick = 0;
+    let num_users = param.max_tasks.unwrap();
 
-        let mut task_count = eval_task_count(&param.spawn_rate, tick)?;
+    for i in 0..num_users {
+        tasks.push(tokio::spawn(run_functions(
+            param.functions_to_execute.clone(),
+            kv_tx.clone(),
+            param.timeout,
+        )));
 
-        // Adjust task count to max task
-        // TODO: This is a wrong implementation of max tasks
-        if let Some(max_tasks) = param.max_tasks {
-            task_count = std::cmp::min(max_tasks as i64, task_count);
-        }
-
-        println!("=== TICK #{tick}, TASK COUNT: {task_count} ===");
-
-        for _ in 1..=task_count {
-            tasks.push(tokio::spawn(run_functions(
-                param.functions_to_execute.clone(),
-                kv_tx.clone(),
-            )));
+        let spawn_rate = eval_task_count(&param.spawn_rate, tick)?;
+        if (i + 1) % spawn_rate == 0 {
+            sleep(Duration::from_secs(1)).await;
+            tick += 1;
         }
     }
 

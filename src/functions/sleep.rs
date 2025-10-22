@@ -12,10 +12,14 @@ pub struct SleepParam {
     duration: String,
 }
 
-pub async fn sleep(param: SleepParam, _kv_tx: Sender) -> FunctionResult {
+pub async fn sleep(param: SleepParam, timeout: Option<Duration>, _kv_tx: Sender) -> FunctionResult {
     println!("Sleeping for {} secs", param.duration);
     let duration = param.duration.parse::<u64>()?;
-    time::sleep(Duration::from_secs(duration)).await;
+    let sleep_time = match timeout {
+        Some(t) => std::cmp::min(Duration::from_secs(duration), t),
+        None => Duration::from_secs(duration),
+    };
+    time::sleep(sleep_time).await;
 
     Ok(FunctionStatus::Passed)
 }
