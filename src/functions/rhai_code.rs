@@ -34,7 +34,7 @@ fn min(a: i64, b: i64) -> i64 {
 async fn init_engine_and_scope(
     local_kv_tx: &tokio::sync::mpsc::Sender<Command>,
 ) -> std::result::Result<
-    (rhai::Engine, rhai::Scope<'static, 8>),
+    (rhai::Engine, rhai::Scope<'static>),
     Box<dyn std::error::Error + Send + Sync>,
 > {
     let mut engine = rhai::Engine::new();
