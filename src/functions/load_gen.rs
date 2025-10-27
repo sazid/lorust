@@ -141,7 +141,6 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
             Value::Dynamic(value) => value.clone_cast::<PathBuf>(),
             Value::Array(_) => unreachable!(),
         };
-        let metrics_output_path = metrics_output_path.join("http.json");
 
         println!("Saving collected metrics to: {:?}", metrics_output_path);
         std::fs::write(metrics_output_path, json_str)?;
