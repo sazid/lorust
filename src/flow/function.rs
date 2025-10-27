@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::functions::{http_request, load_gen, rhai_code, sleep};
+use crate::functions::{http_request, load_gen, python_code, sleep};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Flow {
@@ -12,7 +12,7 @@ pub enum Function {
     HttpRequest(http_request::HttpRequestParam),
     Sleep(sleep::SleepParam),
     LoadGen(load_gen::LoadGenParam),
-    RunRhaiCode(rhai_code::RhaiCodeParam),
+    RunPythonCode(python_code::PythonCodeParam),
     // Pick random item from li
     // Append item to ilst
 }

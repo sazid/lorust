@@ -7,7 +7,7 @@ use isahc::{config::RedirectPolicy, prelude::*, Request};
 use isahc::{AsyncBody, AsyncReadResponseExt, HttpClient};
 
 use form_data_builder::FormData;
-use rhai::Dynamic;
+use serde_json::{json, Value as JsonValue};
 use tokio::sync::oneshot;
 use url_encoded_data::UrlEncodedData;
 
@@ -17,7 +17,7 @@ use crate::kv_store::commands::{Command, Sender};
 
 use super::result::*;
 
-async fn set_local_value(local_kv_tx: &Sender, key: &str, value: Dynamic) -> Result<()> {
+async fn set_local_value(local_kv_tx: &Sender, key: &str, value: JsonValue) -> Result<()> {
     let (resp_tx, resp_rx) = oneshot::channel();
     local_kv_tx
         .send(Command::Set {
@@ -31,11 +31,12 @@ async fn set_local_value(local_kv_tx: &Sender, key: &str, value: Dynamic) -> Res
 }
 
 async fn append_metric(global_kv_tx: &Sender, metric: HttpMetric) -> Result<()> {
+    let metric_value = serde_json::to_value(metric)?;
     let (resp_tx, resp_rx) = oneshot::channel();
     global_kv_tx
         .send(Command::Append {
             key: "load_gen_metrics".into(),
-            value: Dynamic::from(metric),
+            value: metric_value,
             resp: resp_tx,
         })
         .await?;
@@ -67,25 +68,15 @@ async fn record_http_error(
     global_kv_tx: &Sender,
     local_kv_tx: &Sender,
 ) -> Result<()> {
-    set_local_value(
-        local_kv_tx,
-        "http_response",
-        Dynamic::from(error_message.clone()),
-    )
-    .await?;
+    set_local_value(local_kv_tx, "http_response", json!(error_message.clone())).await?;
     set_local_value(
         local_kv_tx,
         "http_status_code",
-        Dynamic::from_int(status_code.unwrap_or(0)),
+        json!(status_code.unwrap_or(0)),
     )
     .await?;
     let headers_json = headers_json.unwrap_or_else(|| "{}".to_string());
-    set_local_value(
-        local_kv_tx,
-        "http_response_headers",
-        Dynamic::from(headers_json),
-    )
-    .await?;
+    set_local_value(local_kv_tx, "http_response_headers", json!(headers_json)).await?;
 
     if should_collect_metrics {
         let metric = HttpMetric {
@@ -368,21 +359,16 @@ pub async fn make_request(
         }
     };
 
-    set_local_value(&local_kv_tx, "http_response", Dynamic::from(body.clone())).await?;
+    set_local_value(&local_kv_tx, "http_response", json!(body.clone())).await?;
     set_local_value(
         &local_kv_tx,
         "http_status_code",
-        Dynamic::from_int(response.status().as_u16() as i64),
+        json!(response.status().as_u16() as i64),
     )
     .await?;
 
     let headers_json = headers_to_json(response.headers())?;
-    set_local_value(
-        &local_kv_tx,
-        "http_response_headers",
-        Dynamic::from(headers_json),
-    )
-    .await?;
+    set_local_value(&local_kv_tx, "http_response_headers", json!(headers_json)).await?;
 
     // Collect metrics if the key is set.
     if should_collect_metrics {

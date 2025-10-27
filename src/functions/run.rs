@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use regex::Regex;
 
-use rhai::Dynamic;
+use serde_json::Value as JsonValue;
 use tokio::time::Instant;
 
 use crate::flow::{Flow, Function};
@@ -12,8 +12,8 @@ use crate::kv_store::{commands::Sender, store::new as kv_store_new};
 
 use super::http_request;
 use super::load_gen;
+use super::python_code;
 use super::result::*;
-use super::rhai_code;
 use super::sleep;
 
 pub async fn run_flow(flow: Flow, kv_tx: Sender) -> FunctionResult {
@@ -35,7 +35,7 @@ pub async fn run_loadgen(functions: Vec<Function>, kv_tx: Sender) -> FunctionRes
 }
 
 async fn interpolate_variables(input: &str, local_kv_tx: Sender) -> Result<Cow<'_, str>> {
-    let mut map: BTreeMap<&str, Dynamic> = BTreeMap::new();
+    let mut map: BTreeMap<String, JsonValue> = BTreeMap::new();
 
     let re = Regex::new(r"%\|(.+?)\|%").unwrap();
 
@@ -44,9 +44,9 @@ async fn interpolate_variables(input: &str, local_kv_tx: Sender) -> Result<Cow<'
         let key = key.as_str();
         let key = &key[2..key.len() - 2];
 
-        let value = rhai_code::eval_rhai_code(key, local_kv_tx.clone()).await?;
+        let value = python_code::eval_python_code(key, local_kv_tx.clone()).await?;
 
-        map.insert(key, value);
+        map.insert(key.to_string(), value);
     }
 
     // Replace the key names with their corresponding string values
@@ -54,7 +54,10 @@ async fn interpolate_variables(input: &str, local_kv_tx: Sender) -> Result<Cow<'
         let key = &caps[1];
 
         match map.get(key).cloned() {
-            Some(value) => value.to_string(),
+            Some(value) => match value {
+                JsonValue::String(s) => s,
+                other => other.to_string(),
+            },
             None => format!("NO_SUCH_VARIABLE:{key}"),
         }
     });
@@ -110,8 +113,8 @@ pub async fn run_functions(
                     Function::Sleep(param) => {
                         sleep::sleep(param, remaining_time, exec_global_kv).await
                     }
-                    Function::RunRhaiCode(param) => {
-                        rhai_code::run_rhai_code(param, exec_global_kv, exec_local_kv).await
+                    Function::RunPythonCode(param) => {
+                        python_code::run_python_code(param, exec_global_kv, exec_local_kv).await
                     }
                     Function::LoadGen(_) => panic!("load gen function cannot be nested"),
                 }

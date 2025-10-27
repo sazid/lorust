@@ -1,12 +1,12 @@
-use std::path::PathBuf;
+use std::{collections::BTreeMap, path::PathBuf};
 
-use rhai::Array;
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value as JsonValue};
 
 use crate::{
     flow::Function,
-    functions::{http_request::HttpMetric, run::run_functions},
-    kv_store::commands::{Command, Sender, Value},
+    functions::{http_request::HttpMetric, python_code, run::run_functions},
+    kv_store::commands::{Command, Sender},
 };
 
 use tokio::{
@@ -28,35 +28,28 @@ pub struct LoadGenParam {
     functions_to_execute: Vec<Function>,
 }
 
-fn max(a: i64, b: i64) -> i64 {
-    if a > b {
-        a
-    } else {
-        b
-    }
-}
-
-fn min(a: i64, b: i64) -> i64 {
-    if a < b {
-        a
-    } else {
-        b
-    }
-}
-
 fn eval_task_count(
     expression: &str,
     tick: i64,
 ) -> std::result::Result<i64, Box<dyn std::error::Error + Send + Sync>> {
-    let mut engine = rhai::Engine::new();
-    engine.register_fn("max", max);
-    engine.register_fn("min", min);
+    let mut context = BTreeMap::new();
+    context.insert("TICK".to_string(), json!(tick));
 
-    let mut scope = rhai::Scope::new();
-    scope.push_constant("TICK", tick);
-
-    let result = engine.eval_expression_with_scope(&mut scope, expression)?;
-    Ok(result)
+    let result = python_code::eval_expression_with_context(expression, &context)?;
+    match result {
+        JsonValue::Number(num) => {
+            if let Some(value) = num.as_i64() {
+                Ok(value)
+            } else if let Some(value) = num.as_u64() {
+                Ok(value as i64)
+            } else {
+                Err(format!("expression '{expression}' produced non-integer value").into())
+            }
+        }
+        other => {
+            Err(format!("expression '{expression}' produced non-numeric value: {other}").into())
+        }
+    }
 }
 
 pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
@@ -65,10 +58,10 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
     config_display.functions_to_execute = Vec::new();
     println!("{:?}", config_display);
 
-    let metrics: Array = Vec::new();
+    let metrics = json!([]);
     let (resp_tx, resp_rx) = oneshot::channel();
     kv_tx
-        .send(Command::SetArray {
+        .send(Command::Set {
             key: "load_gen_metrics".into(),
             value: metrics,
             resp: resp_tx,
@@ -144,12 +137,12 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
         .await?;
     let metrics = resp_rx.await??;
 
-    if let Value::Array(mut metrics) = metrics {
+    if let Some(JsonValue::Array(metrics)) = metrics {
         println!("Collected metrics array size: {:?}", metrics.len());
         let metrics: Vec<HttpMetric> = metrics
-            .iter_mut()
-            .map(|x| x.take().cast::<HttpMetric>())
-            .collect();
+            .into_iter()
+            .map(serde_json::from_value)
+            .collect::<std::result::Result<_, _>>()?;
 
         let json_str = serde_json::to_string(&metrics)?;
 
@@ -160,10 +153,15 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
                 resp: resp_tx,
             })
             .await?;
-        let metrics_output_path = match resp_rx.await?? {
-            Value::Dynamic(value) => value.clone_cast::<PathBuf>(),
-            Value::Array(_) => unreachable!(),
-        };
+        let metrics_output_value = resp_rx.await??;
+        let metrics_output_path: PathBuf = metrics_output_value
+            .and_then(|value| serde_json::from_value(value).ok())
+            .ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "metrics_output_path is missing or invalid",
+                )
+            })?;
 
         println!("Saving collected metrics to: {:?}", metrics_output_path);
         std::fs::write(metrics_output_path, json_str)?;
