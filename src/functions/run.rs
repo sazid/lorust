@@ -73,46 +73,75 @@ pub async fn run_functions(
     let (local_kv_handle, local_kv_tx) = kv_store_new().await;
 
     let end_time = Instant::now() + Duration::from_secs(timeout);
+    let mut final_status = FunctionStatus::Passed;
 
     // Perform variable interpolation and execute the Functions.
-    for (_, function) in functions.into_iter().enumerate() {
+    for (index, function) in functions.into_iter().enumerate() {
         if Instant::now() >= end_time {
             break;
         }
 
-        // 1. Convert the Function a string.
-        let function: String = serde_json::to_string(&function)?;
+        let exec_result: FunctionResult = {
+            let exec_local_kv = local_kv_tx.clone();
+            let exec_global_kv = global_kv_tx.clone();
+            async move {
+                // 1. Convert the Function to a string.
+                let function_str = serde_json::to_string(&function)?;
 
-        // 2. Perform variable (string) interpolation and insert variable values.
-        let function: Cow<'_, str> = interpolate_variables(&function, local_kv_tx.clone()).await?;
+                // 2. Perform variable (string) interpolation and insert variable values.
+                let interpolated =
+                    interpolate_variables(&function_str, exec_local_kv.clone()).await?;
 
-        // 3. Convert the interpolated string back to a Function that can be executed.
-        let function: Function = serde_json::from_str(&function)?;
+                // 3. Convert the interpolated string back to a Function that can be executed.
+                let executable_function: Function = serde_json::from_str(interpolated.as_ref())?;
 
-        // 4. Execute the Function.
-        let remaining_time = Some(end_time - Instant::now());
-        match function {
-            Function::HttpRequest(param) => {
-                http_request::make_request(
-                    param.clone(),
-                    remaining_time,
-                    global_kv_tx.clone(),
-                    local_kv_tx.clone(),
-                )
-                .await?
+                // 4. Execute the Function.
+                let remaining_time = end_time.checked_duration_since(Instant::now());
+                match executable_function {
+                    Function::HttpRequest(param) => {
+                        http_request::make_request(
+                            param,
+                            remaining_time,
+                            exec_global_kv,
+                            exec_local_kv,
+                        )
+                        .await
+                    }
+                    Function::Sleep(param) => {
+                        sleep::sleep(param, remaining_time, exec_global_kv).await
+                    }
+                    Function::RunRhaiCode(param) => {
+                        rhai_code::run_rhai_code(param, exec_global_kv, exec_local_kv).await
+                    }
+                    Function::LoadGen(_) => panic!("load gen function cannot be nested"),
+                }
             }
-            Function::Sleep(param) => {
-                sleep::sleep(param.clone(), remaining_time, global_kv_tx.clone()).await?
-            }
-            Function::RunRhaiCode(param) => {
-                rhai_code::run_rhai_code(param, global_kv_tx.clone(), local_kv_tx.clone()).await?
-            }
-            Function::LoadGen(_) => panic!("load gen function cannot be nested"),
+            .await
         };
+
+        match exec_result {
+            Ok(FunctionStatus::Passed) => {}
+            Ok(FunctionStatus::Failed) => {
+                final_status = FunctionStatus::Failed;
+                break;
+            }
+            Err(err) => {
+                eprintln!(
+                    "Function #{} execution failed with error: {}",
+                    index + 1,
+                    err
+                );
+                final_status = FunctionStatus::Failed;
+                break;
+            }
+        }
     }
 
     drop(local_kv_tx);
-    local_kv_handle.await?;
+    if let Err(err) = local_kv_handle.await {
+        eprintln!("Local KV store task ended with error: {}", err);
+        final_status = FunctionStatus::Failed;
+    }
 
-    Ok(FunctionStatus::Passed)
+    Ok(final_status)
 }

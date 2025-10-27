@@ -55,9 +55,7 @@ fn eval_task_count(
     let mut scope = rhai::Scope::new();
     scope.push_constant("TICK", tick);
 
-    let result = engine
-        .eval_expression_with_scope(&mut scope, expression)
-        .unwrap();
+    let result = engine.eval_expression_with_scope(&mut scope, expression)?;
     Ok(result)
 }
 
@@ -81,7 +79,17 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
     let mut tasks = Vec::new();
 
     let mut tick = 0;
-    let num_users = param.max_tasks.unwrap();
+    let num_users = match param.max_tasks {
+        Some(value) if value > 0 => value,
+        Some(_) => {
+            eprintln!("load generator configuration error: max_tasks must be greater than zero");
+            return Ok(FunctionStatus::Failed);
+        }
+        None => {
+            eprintln!("load generator configuration error: max_tasks is missing");
+            return Ok(FunctionStatus::Failed);
+        }
+    };
 
     for i in 0..num_users {
         tasks.push(tokio::spawn(run_functions(
@@ -90,8 +98,8 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
             param.timeout,
         )));
 
-        let spawn_rate = eval_task_count(&param.spawn_rate, tick)?;
-        if (i + 1) % (spawn_rate as u64) == 0 {
+        let spawn_rate = eval_task_count(&param.spawn_rate, tick)?.max(1) as u64;
+        if (i + 1) % spawn_rate == 0 {
             sleep(Duration::from_secs(1)).await;
             tick += 1;
         }
@@ -100,12 +108,27 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
     let mut pass_count = 0;
     let mut fail_count = 0;
     let mut total_task_count = 0;
+    let mut overall_status = FunctionStatus::Passed;
+
     for task_result in futures::future::join_all(tasks).await {
-        match task_result?? {
-            FunctionStatus::Failed => fail_count += 1,
-            FunctionStatus::Passed => pass_count += 1,
-        };
         total_task_count += 1;
+        match task_result {
+            Ok(Ok(FunctionStatus::Passed)) => pass_count += 1,
+            Ok(Ok(FunctionStatus::Failed)) => {
+                fail_count += 1;
+                overall_status = FunctionStatus::Failed;
+            }
+            Ok(Err(err)) => {
+                eprintln!("Task resolver returned error: {}", err);
+                fail_count += 1;
+                overall_status = FunctionStatus::Failed;
+            }
+            Err(join_err) => {
+                eprintln!("Task join error: {}", join_err);
+                fail_count += 1;
+                overall_status = FunctionStatus::Failed;
+            }
+        };
     }
     println!("=== Load test complete ===");
     println!("TOTAL TASKS: {total_task_count}");
@@ -148,5 +171,5 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
         println!("It's a different value?!")
     }
 
-    Ok(FunctionStatus::Passed)
+    Ok(overall_status)
 }
