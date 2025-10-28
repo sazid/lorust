@@ -14,8 +14,7 @@ form-data-builder = "1.0.1"
 url_encoded_data = "0.6.1"
 thiserror = "1.0.69"
 async-recursion = "1.0.4"
-rustpython-vm = { version = "0.4.0", features = ["serde"] }
-rustpython-stdlib = "0.4.0"
+pyo3 = { version = "0.21.2", features = ["auto-initialize", "serde"] }
 futures = "0.3.31"
 parking_lot = "0.12.3"
 chrono = "0.4.39"

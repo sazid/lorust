@@ -29,13 +29,14 @@ pub struct LoadGenParam {
 }
 
 fn eval_task_count(
+    interpreter: &python_code::PythonInterpreter,
     expression: &str,
     tick: i64,
 ) -> std::result::Result<i64, Box<dyn std::error::Error + Send + Sync>> {
     let mut context = BTreeMap::new();
     context.insert("TICK".to_string(), json!(tick));
 
-    let result = python_code::eval_expression_with_context(expression, &context)?;
+    let result = python_code::eval_expression_with_context(interpreter, expression, &context)?;
     match result {
         JsonValue::Number(num) => {
             if let Some(value) = num.as_i64() {
@@ -57,6 +58,8 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
     let mut config_display = param.clone();
     config_display.functions_to_execute = Vec::new();
     println!("{:?}", config_display);
+
+    let eval_interpreter = python_code::PythonInterpreter::new()?;
 
     let metrics = json!([]);
     let (resp_tx, resp_rx) = oneshot::channel();
@@ -91,7 +94,7 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
             param.timeout,
         )));
 
-        let spawn_rate = eval_task_count(&param.spawn_rate, tick)?.max(1) as u64;
+        let spawn_rate = eval_task_count(&eval_interpreter, &param.spawn_rate, tick)?.max(1) as u64;
         if (i + 1) % spawn_rate == 0 {
             sleep(Duration::from_secs(1)).await;
             tick += 1;
