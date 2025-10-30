@@ -17,6 +17,102 @@ use crate::kv_store::commands::{Command, Sender};
 
 use super::result::*;
 
+async fn set_local_value(local_kv_tx: &Sender, key: &str, value: Dynamic) -> Result<()> {
+    let (resp_tx, resp_rx) = oneshot::channel();
+    local_kv_tx
+        .send(Command::Set {
+            key: key.to_string(),
+            value,
+            resp: resp_tx,
+        })
+        .await?;
+    resp_rx.await??;
+    Ok(())
+}
+
+async fn append_metric(global_kv_tx: &Sender, metric: HttpMetric) -> Result<()> {
+    let (resp_tx, resp_rx) = oneshot::channel();
+    global_kv_tx
+        .send(Command::Append {
+            key: "load_gen_metrics".into(),
+            value: Dynamic::from(metric),
+            resp: resp_tx,
+        })
+        .await?;
+    resp_rx.await??;
+    Ok(())
+}
+
+fn headers_to_json(headers: &isahc::http::HeaderMap) -> Result<String> {
+    let headers: BTreeMap<String, String> = headers
+        .iter()
+        .filter_map(|(k, v)| {
+            v.to_str()
+                .ok()
+                .map(|value| (k.to_string(), value.to_string()))
+        })
+        .collect();
+
+    Ok(serde_json::to_string(&headers)?)
+}
+
+async fn record_http_error(
+    url: &str,
+    method: &str,
+    time_stamp: String,
+    error_message: String,
+    status_code: Option<i64>,
+    headers_json: Option<String>,
+    should_collect_metrics: bool,
+    global_kv_tx: &Sender,
+    local_kv_tx: &Sender,
+) -> Result<()> {
+    set_local_value(
+        local_kv_tx,
+        "http_response",
+        Dynamic::from(error_message.clone()),
+    )
+    .await?;
+    set_local_value(
+        local_kv_tx,
+        "http_status_code",
+        Dynamic::from_int(status_code.unwrap_or(0)),
+    )
+    .await?;
+    let headers_json = headers_json.unwrap_or_else(|| "{}".to_string());
+    set_local_value(
+        local_kv_tx,
+        "http_response_headers",
+        Dynamic::from(headers_json),
+    )
+    .await?;
+
+    if should_collect_metrics {
+        let metric = HttpMetric {
+            url: url.to_string(),
+            http_verb: method.to_string(),
+            status_code: status_code.unwrap_or(0),
+            response_body_size: 0,
+            time_stamp,
+            response_body: error_message,
+            upload_total: 0,
+            download_total: 0,
+            upload_speed: 0.0,
+            download_speed: 0.0,
+            namelookup_time: 0,
+            connect_time: 0,
+            tls_handshake_time: 0,
+            starttransfer_time: 0,
+            elapsed_time: 0,
+            redirect_time: 0,
+        };
+
+        append_metric(global_kv_tx, metric).await?;
+    }
+
+    Ok(())
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct HttpMetric {
     /// URL of the request
@@ -166,6 +262,9 @@ pub async fn make_request(
         None => param_timeout,
     };
 
+    let metrics_url = param.url.clone();
+    let metrics_method = param.method.clone();
+
     let client = HttpClient::builder()
         .timeout(timeout)
         .metrics(should_collect_metrics)
@@ -175,8 +274,8 @@ pub async fn make_request(
         .expect("failed to construct HttpClient");
 
     let mut request_builder = Request::builder()
-        .uri(param.url.clone())
-        .method(Method::from_str(&param.method)?);
+        .uri(metrics_url.clone())
+        .method(Method::from_str(&metrics_method)?);
 
     for KeyValue(key, value) in param.headers {
         request_builder = request_builder.header(key, value);
@@ -224,51 +323,66 @@ pub async fn make_request(
     let time_stamp = chrono::Local::now()
         .format("%Y-%m-%d %H:%M:%S.%f")
         .to_string();
-    let mut response = client.send_async(request).await?;
+    let mut response = match client.send_async(request).await {
+        Ok(response) => response,
+        Err(err) => {
+            let error_message = format!("Request failed: {}", err);
+            record_http_error(
+                &metrics_url,
+                &metrics_method,
+                time_stamp.clone(),
+                error_message,
+                None,
+                None,
+                should_collect_metrics,
+                &global_kv_tx,
+                &local_kv_tx,
+            )
+            .await?;
+
+            return Ok(FunctionStatus::Failed);
+        }
+    };
 
     // WARNING: The response text() can be read only once.
-    let body = response.text().await?;
+    let body = match response.text().await {
+        Ok(body) => body,
+        Err(err) => {
+            let status_code = response.status().as_u16() as i64;
+            let headers_json = headers_to_json(response.headers())?;
+            let error_message = format!("Failed to read response body: {}", err);
+            record_http_error(
+                &metrics_url,
+                &metrics_method,
+                time_stamp.clone(),
+                error_message,
+                Some(status_code),
+                Some(headers_json),
+                should_collect_metrics,
+                &global_kv_tx,
+                &local_kv_tx,
+            )
+            .await?;
 
-    // Save response body
-    let (resp_tx, resp_rx) = oneshot::channel();
-    local_kv_tx
-        .send(Command::Set {
-            key: "http_response".into(),
-            value: Dynamic::from(body.clone()),
-            resp: resp_tx,
-        })
-        .await?;
-    resp_rx.await??;
+            return Ok(FunctionStatus::Failed);
+        }
+    };
 
-    // Save response status code
-    let (resp_tx, resp_rx) = oneshot::channel();
-    local_kv_tx
-        .send(Command::Set {
-            key: "http_status_code".into(),
-            value: Dynamic::from_int(response.status().as_u16() as i64),
-            resp: resp_tx,
-        })
-        .await?;
-    resp_rx.await??;
+    set_local_value(&local_kv_tx, "http_response", Dynamic::from(body.clone())).await?;
+    set_local_value(
+        &local_kv_tx,
+        "http_status_code",
+        Dynamic::from_int(response.status().as_u16() as i64),
+    )
+    .await?;
 
-    // Save response headers
-    let headers: BTreeMap<String, String> = response
-        .headers()
-        .iter()
-        .filter(|(_, v)| v.to_str().is_ok())
-        .map(|(k, v)| (k.to_string(), v.to_str().unwrap().to_string()))
-        .collect();
-
-    let headers_json = serde_json::to_string(&headers)?;
-    let (resp_tx, resp_rx) = oneshot::channel();
-    local_kv_tx
-        .send(Command::Set {
-            key: "http_response_headers".into(),
-            value: Dynamic::from(headers_json),
-            resp: resp_tx,
-        })
-        .await?;
-    resp_rx.await??;
+    let headers_json = headers_to_json(response.headers())?;
+    set_local_value(
+        &local_kv_tx,
+        "http_response_headers",
+        Dynamic::from(headers_json),
+    )
+    .await?;
 
     // Collect metrics if the key is set.
     if should_collect_metrics {
@@ -284,8 +398,8 @@ pub async fn make_request(
             .expect("metrics must be set to true in the builder");
 
         let metric = HttpMetric {
-            url: param.url.clone(),
-            http_verb: param.method.clone(),
+            url: metrics_url.clone(),
+            http_verb: metrics_method.clone(),
             status_code: response.status().as_u16() as i64,
             response_body_size: body.len(),
             time_stamp,
@@ -304,15 +418,7 @@ pub async fn make_request(
             redirect_time: http_metrics.redirect_time().as_millis(),
         };
 
-        let (resp_tx, resp_rx) = oneshot::channel();
-        global_kv_tx
-            .send(Command::Append {
-                key: "load_gen_metrics".into(),
-                resp: resp_tx,
-                value: Dynamic::from(metric),
-            })
-            .await?;
-        resp_rx.await??;
+        append_metric(&global_kv_tx, metric).await?;
     }
 
     // println!("{}", response.text().await?);
