@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use regex::Regex;
 
-use rhai::Dynamic;
+use serde_json::Value as JsonValue;
 use tokio::time::Instant;
 
 use crate::flow::{Flow, Function};
@@ -12,8 +12,8 @@ use crate::kv_store::{commands::Sender, store::new as kv_store_new};
 
 use super::http_request;
 use super::load_gen;
+use super::python_code;
 use super::result::*;
-use super::rhai_code;
 use super::sleep;
 
 pub async fn run_flow(flow: Flow, kv_tx: Sender) -> FunctionResult {
@@ -34,8 +34,12 @@ pub async fn run_loadgen(functions: Vec<Function>, kv_tx: Sender) -> FunctionRes
     Ok(FunctionStatus::Passed)
 }
 
-async fn interpolate_variables(input: &str, local_kv_tx: Sender) -> Result<Cow<'_, str>> {
-    let mut map: BTreeMap<&str, Dynamic> = BTreeMap::new();
+async fn interpolate_variables(
+    input: &str,
+    python: python_code::PythonInterpreter,
+    local_kv_tx: Sender,
+) -> Result<Cow<'_, str>> {
+    let mut map: BTreeMap<String, JsonValue> = BTreeMap::new();
 
     let re = Regex::new(r"%\|(.+?)\|%").unwrap();
 
@@ -44,9 +48,9 @@ async fn interpolate_variables(input: &str, local_kv_tx: Sender) -> Result<Cow<'
         let key = key.as_str();
         let key = &key[2..key.len() - 2];
 
-        let value = rhai_code::eval_rhai_code(key, local_kv_tx.clone()).await?;
+        let value = python_code::eval_python_code(key, python.clone(), local_kv_tx.clone()).await?;
 
-        map.insert(key, value);
+        map.insert(key.to_string(), value);
     }
 
     // Replace the key names with their corresponding string values
@@ -54,7 +58,10 @@ async fn interpolate_variables(input: &str, local_kv_tx: Sender) -> Result<Cow<'
         let key = &caps[1];
 
         match map.get(key).cloned() {
-            Some(value) => value.to_string(),
+            Some(value) => match value {
+                JsonValue::String(s) => s,
+                other => other.to_string(),
+            },
             None => format!("NO_SUCH_VARIABLE:{key}"),
         }
     });
@@ -71,6 +78,7 @@ pub async fn run_functions(
     // scoping mechanisms with scope names that can be referred from inside
     // functions. Maybe a graph of scopes that child scopes can refer back to?
     let (local_kv_handle, local_kv_tx) = kv_store_new().await;
+    let python_interpreter = python_code::PythonInterpreter::new()?;
 
     let end_time = Instant::now() + Duration::from_secs(timeout);
     let mut final_status = FunctionStatus::Passed;
@@ -84,13 +92,18 @@ pub async fn run_functions(
         let exec_result: FunctionResult = {
             let exec_local_kv = local_kv_tx.clone();
             let exec_global_kv = global_kv_tx.clone();
+            let exec_python = python_interpreter.clone();
             async move {
                 // 1. Convert the Function to a string.
                 let function_str = serde_json::to_string(&function)?;
 
                 // 2. Perform variable (string) interpolation and insert variable values.
-                let interpolated =
-                    interpolate_variables(&function_str, exec_local_kv.clone()).await?;
+                let interpolated = interpolate_variables(
+                    &function_str,
+                    exec_python.clone(),
+                    exec_local_kv.clone(),
+                )
+                .await?;
 
                 // 3. Convert the interpolated string back to a Function that can be executed.
                 let executable_function: Function = serde_json::from_str(interpolated.as_ref())?;
@@ -110,8 +123,8 @@ pub async fn run_functions(
                     Function::Sleep(param) => {
                         sleep::sleep(param, remaining_time, exec_global_kv).await
                     }
-                    Function::RunRhaiCode(param) => {
-                        rhai_code::run_rhai_code(param, exec_global_kv, exec_local_kv).await
+                    Function::RunPythonCode(param) => {
+                        python_code::run_python_code(param, exec_python, exec_local_kv).await
                     }
                     Function::LoadGen(_) => panic!("load gen function cannot be nested"),
                 }
