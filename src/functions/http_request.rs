@@ -275,7 +275,9 @@ pub async fn make_request(
         .redirect_policy(RedirectPolicy::Limit(param.redirect_limit.unwrap_or(5)))
         .cookies()
         // .ssl_options(SslOption::DANGER_ACCEPT_INVALID_CERTS | SslOption::DANGER_ACCEPT_REVOKED_CERTS)
-        .ssl_options(SslOption::DANGER_ACCEPT_INVALID_CERTS)
+        .ssl_options(
+            SslOption::DANGER_ACCEPT_INVALID_CERTS | SslOption::DANGER_ACCEPT_INVALID_HOSTS,
+        )
         .build()
         .expect("failed to construct HttpClient");
 
