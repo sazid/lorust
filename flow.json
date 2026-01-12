@@ -22,13 +22,13 @@
                         }
                     },
                     {
-                        "RunRhaiCode": {
-                            "code": "let user_id = http_response[\"data\"].id;"
+                        "RunPythonCode": {
+                            "code": "user_id = http_response['data']['id']"
                         }
                     },
                     {
-                        "RunRhaiCode": {
-                            "code": "print(\"Picked user_id: \" + user_id);"
+                        "RunPythonCode": {
+                            "code": "print(f'Picked user_id: {user_id}')"
                         }
                     },
                     {
@@ -47,8 +47,8 @@
                         }
                     },
                     {
-                        "RunRhaiCode": {
-                            "code": "let data = http_response.data;\nprint(data.first_name + \" \" + data.last_name);"
+                        "RunPythonCode": {
+                            "code": "data = http_response['data']\nprint(f\"{data['first_name']} {data['last_name']}\")"
                         }
                     }
                 ]
