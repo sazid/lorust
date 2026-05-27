@@ -1,23 +1,23 @@
 [package]
 name = "lorust"
-version = "0.1.0"
-edition = "2021"
+version = "0.2.0"
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { version = "1", features = ["full"] }
-isahc = { version = "1.7.2", features = ["http2", "static-curl", "static-ssl", "text-decoding", "json", "cookies"] }
-serde = { version = "1.0.215", features = ["default", "derive"] }
-serde_json = { version = "1.0.133", features = ["std", "preserve_order"] }
+tokio = { version = "1.52.3", features = ["full"] }
+isahc = { version = "2.0.0", default-features = false, features = ["http2", "static-curl", "native-tls-static", "text-decoding", "json", "cookies", "tls-insecure"] }
+serde = { version = "1.0.228", features = ["default", "derive"] }
+serde_json = { version = "1.0.150", features = ["std", "preserve_order"] }
 form-data-builder = "1.0.1"
 url_encoded_data = "0.6.1"
-thiserror = "1.0.69"
-async-recursion = "1.0.4"
-rhai = { version = "1", features = ["serde", "sync"] }
+thiserror = "2.0.18"
+async-recursion = "1.1.1"
+rhai = { version = "1.25.0", features = ["serde", "sync"] }
 rhai-rand = "0.1.6"
-futures = "0.3.31"
-parking_lot = "0.12.3"
-chrono = "0.4.39"
-regex = "1.11.1"
-clap = { version = "4.5.23", features = ["derive"] }
+futures = "0.3.32"
+parking_lot = "0.12.5"
+chrono = "0.4.44"
+regex = "1.12.3"
+clap = { version = "4.6.1", features = ["derive"] }

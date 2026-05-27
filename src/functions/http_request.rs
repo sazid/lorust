@@ -3,12 +3,8 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use isahc::http::Method;
-use isahc::{
-    config::{RedirectPolicy, SslOption},
-    prelude::*,
-    Request,
-};
 use isahc::{AsyncBody, AsyncReadResponseExt, HttpClient};
+use isahc::{Request, config::RedirectPolicy, prelude::*, tls::TlsConfig};
 
 use form_data_builder::FormData;
 use rhai::Dynamic;
@@ -274,9 +270,11 @@ pub async fn make_request(
         .metrics(should_collect_metrics)
         .redirect_policy(RedirectPolicy::Limit(param.redirect_limit.unwrap_or(5)))
         .cookies()
-        // .ssl_options(SslOption::DANGER_ACCEPT_INVALID_CERTS | SslOption::DANGER_ACCEPT_REVOKED_CERTS)
-        .ssl_options(
-            SslOption::DANGER_ACCEPT_INVALID_CERTS | SslOption::DANGER_ACCEPT_INVALID_HOSTS,
+        .tls_config(
+            TlsConfig::builder()
+                .danger_accept_invalid_certs(true)
+                .danger_accept_invalid_hosts(true)
+                .build(),
         )
         .build()
         .expect("failed to construct HttpClient");
