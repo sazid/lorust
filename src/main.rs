@@ -109,6 +109,10 @@ struct HttpArgs {
     /// Maximum redirects to follow
     #[arg(long)]
     redirect_limit: Option<u32>,
+
+    /// Maximum failed-response body bytes to store in metrics
+    #[arg(long, default_value_t = 4096)]
+    max_response_body_bytes: usize,
 }
 
 fn parse_header(header: &str) -> Result<KeyValue<String>> {
@@ -180,6 +184,7 @@ fn flow_from_http_args(args: HttpArgs) -> Result<Flow> {
         session: None,
         timeout: Some(args.timeout),
         redirect_limit: args.redirect_limit,
+        max_response_body_bytes: Some(args.max_response_body_bytes),
     };
 
     let load_gen = LoadGenParam::new(

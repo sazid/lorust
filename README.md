@@ -45,6 +45,7 @@ $ target/release/lorust http https://api.example.com/users \
     -m POST \
     -H 'Content-Type: application/json' \
     -d '{"name":"Ada"}' \
+    --max-response-body-bytes 4096 \
     --timeout 10 \
     --output-path metrics.json
 ```

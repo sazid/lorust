@@ -18,6 +18,8 @@ use crate::kv_store::commands::{Command, Sender};
 
 use super::result::*;
 
+const DEFAULT_MAX_RESPONSE_BODY_BYTES: usize = 4 * 1024;
+
 #[derive(Debug, Clone)]
 pub struct HttpMetricIdentity {
     pub run_id: String,
@@ -103,6 +105,16 @@ fn body_to_json(body: &[u8]) -> JsonValue {
         .unwrap_or_else(|_| JsonValue::String(String::from_utf8_lossy(body).into_owned()))
 }
 
+fn metric_response_body(body: &[u8], max_bytes: usize) -> (String, bool) {
+    let stored_len = body.len().min(max_bytes);
+    let truncated = body.len() > stored_len;
+
+    (
+        String::from_utf8_lossy(&body[..stored_len]).into_owned(),
+        truncated,
+    )
+}
+
 fn request_started_at() -> (String, u64) {
     let started_at = SystemTime::now();
     let time_stamp = chrono::DateTime::<chrono::Local>::from(started_at)
@@ -156,6 +168,7 @@ async fn record_http_error(
             time_stamp,
             started_at_nanos,
             response_body: error_message,
+            response_body_truncated: false,
             upload_total: 0,
             download_total: 0,
             upload_speed: 0.0,
@@ -207,6 +220,9 @@ pub struct HttpMetric {
     /// Whenever the status code is not within the range 200 <= 299,
     /// the response body is collected as a string.
     pub response_body: String,
+
+    /// Whether `response_body` was capped before storing in the metric.
+    pub response_body_truncated: bool,
 
     pub upload_total: u64,
     pub download_total: u64,
@@ -311,6 +327,9 @@ pub struct HttpRequestParam {
 
     #[serde(default)]
     pub redirect_limit: Option<u32>,
+
+    #[serde(default)]
+    pub max_response_body_bytes: Option<usize>,
 }
 
 pub async fn make_request(
@@ -330,6 +349,9 @@ pub async fn make_request(
 
     let metrics_url = param.url.clone();
     let metrics_method = param.method.clone();
+    let max_response_body_bytes = param
+        .max_response_body_bytes
+        .unwrap_or(DEFAULT_MAX_RESPONSE_BODY_BYTES);
 
     let mut request_builder = Request::builder()
         .uri(metrics_url.clone())
@@ -438,7 +460,6 @@ pub async fn make_request(
     let status = response.status();
     let status_is_success = status.is_success();
     let status_code = status.as_u16() as i64;
-    let response_body = String::from_utf8_lossy(&body);
 
     set_local_value(&local_kv_tx, "http_response", body_to_json(&body)).await?;
     set_local_value(
@@ -453,10 +474,10 @@ pub async fn make_request(
 
     // Collect metrics if the key is set.
     if let Some(identity) = metric_identity.as_ref() {
-        let response_body: String = if status_is_success {
-            String::new()
+        let (response_body, response_body_truncated) = if status_is_success {
+            (String::new(), false)
         } else {
-            response_body.into_owned()
+            metric_response_body(&body, max_response_body_bytes)
         };
 
         let http_metrics = response
@@ -475,6 +496,7 @@ pub async fn make_request(
             time_stamp,
             started_at_nanos,
             response_body,
+            response_body_truncated,
 
             upload_total: http_metrics.upload_progress().0,
             download_total: http_metrics.download_progress().0,
