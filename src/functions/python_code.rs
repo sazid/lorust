@@ -9,7 +9,7 @@ use rustpython_vm::{
 };
 use serde::{Deserialize, Serialize, de::DeserializeSeed};
 use serde_json::Value as JsonValue;
-use tokio::sync::oneshot;
+use tokio::{sync::oneshot, task};
 
 use crate::kv_store::commands::{Command, Sender, Value};
 
@@ -174,7 +174,8 @@ pub async fn run_python_code(
     local_kv_tx: Sender,
 ) -> FunctionResult {
     let values = load_scope_values(&local_kv_tx).await?;
-    let values = execute_python_code(&param.code, values)?;
+    let code = param.code;
+    let values = task::spawn_blocking(move || execute_python_code(&code, values)).await??;
     store_scope_values(&local_kv_tx, values).await?;
 
     Ok(FunctionStatus::Passed)
@@ -182,7 +183,8 @@ pub async fn run_python_code(
 
 pub async fn eval_python_expression(code: &str, local_kv_tx: Sender) -> Result<JsonValue> {
     let values = load_scope_values(&local_kv_tx).await?;
-    eval_python_expression_with_values(code, values)
+    let code = code.to_string();
+    task::spawn_blocking(move || eval_python_expression_with_values(&code, values)).await?
 }
 
 pub fn json_pathbuf(value: JsonValue) -> Result<PathBuf> {

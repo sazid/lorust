@@ -26,14 +26,18 @@ pub struct LoadGenParam {
     functions_to_execute: Vec<Function>,
 }
 
-fn eval_task_count(
+async fn eval_task_count(
     expression: &str,
     tick: i64,
 ) -> std::result::Result<i64, Box<dyn std::error::Error + Send + Sync>> {
-    python_code::eval_python_i64(
-        expression,
-        vec![("TICK".to_string(), JsonValue::from(tick))],
-    )
+    let expression = expression.to_string();
+    tokio::task::spawn_blocking(move || {
+        python_code::eval_python_i64(
+            &expression,
+            vec![("TICK".to_string(), JsonValue::from(tick))],
+        )
+    })
+    .await?
 }
 
 fn percentile(sorted_values: &[u128], percentile: u128) -> u128 {
@@ -109,7 +113,7 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
     };
 
     let schedule_started_at = Instant::now();
-    let mut spawn_rate = eval_task_count(&param.spawn_rate, tick)?.max(1) as u64;
+    let mut spawn_rate = eval_task_count(&param.spawn_rate, tick).await?.max(1) as u64;
     let mut spawned_this_tick = 0;
 
     for i in 0..num_users {
@@ -127,7 +131,7 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
         let next_spawn_at = if spawned_this_tick >= spawn_rate {
             tick += 1;
             spawned_this_tick = 0;
-            spawn_rate = eval_task_count(&param.spawn_rate, tick)?.max(1) as u64;
+            spawn_rate = eval_task_count(&param.spawn_rate, tick).await?.max(1) as u64;
             schedule_started_at + Duration::from_secs(tick as u64)
         } else {
             let nanos_into_tick = spawned_this_tick * 1_000_000_000 / spawn_rate;
