@@ -44,6 +44,11 @@ pub enum Command {
         value: JsonValue,
         resp: Responder<()>,
     },
+    ExtendArray {
+        key: String,
+        values: Vec<JsonValue>,
+        resp: Responder<()>,
+    },
     ListKeys {
         resp: Responder<Vec<String>>,
     },

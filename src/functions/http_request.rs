@@ -31,12 +31,21 @@ async fn set_local_value(local_kv_tx: &Sender, key: &str, value: JsonValue) -> R
     Ok(())
 }
 
-async fn append_metric(global_kv_tx: &Sender, metric: HttpMetric) -> Result<()> {
+pub async fn append_metrics(global_kv_tx: &Sender, metrics: Vec<HttpMetric>) -> Result<()> {
+    if metrics.is_empty() {
+        return Ok(());
+    }
+
+    let values = metrics
+        .into_iter()
+        .map(serde_json::to_value)
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+
     let (resp_tx, resp_rx) = oneshot::channel();
     global_kv_tx
-        .send(Command::Append {
+        .send(Command::ExtendArray {
             key: "load_gen_metrics".into(),
-            value: serde_json::to_value(metric)?,
+            values,
             resp: resp_tx,
         })
         .await?;
@@ -95,9 +104,8 @@ async fn record_http_error(
     headers_json: Option<JsonValue>,
     elapsed_time: u128,
     should_collect_metrics: bool,
-    global_kv_tx: &Sender,
     local_kv_tx: &Sender,
-) -> Result<()> {
+) -> Result<Option<HttpMetric>> {
     set_local_value(
         local_kv_tx,
         "http_response",
@@ -114,7 +122,7 @@ async fn record_http_error(
     set_local_value(local_kv_tx, "http_response_headers", headers_json).await?;
 
     if should_collect_metrics {
-        let metric = HttpMetric {
+        return Ok(Some(HttpMetric {
             url: url.to_string(),
             http_verb: method.to_string(),
             status_code: status_code.unwrap_or(0),
@@ -131,12 +139,10 @@ async fn record_http_error(
             starttransfer_time: 0,
             elapsed_time,
             redirect_time: 0,
-        };
-
-        append_metric(global_kv_tx, metric).await?;
+        }));
     }
 
-    Ok(())
+    Ok(None)
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -270,7 +276,7 @@ pub async fn make_request(
     timeout: Option<Duration>,
     client: HttpClient,
     should_collect_metrics: bool,
-    global_kv_tx: Sender,
+    mut metrics: Option<&mut Vec<HttpMetric>>,
     local_kv_tx: Sender,
 ) -> FunctionResult {
     // timeout from the parameters of this request
@@ -336,7 +342,7 @@ pub async fn make_request(
         Ok(response) => response,
         Err(err) => {
             let error_message = format!("Request failed: {}", err);
-            record_http_error(
+            if let Some(metric) = record_http_error(
                 &metrics_url,
                 &metrics_method,
                 time_stamp.clone(),
@@ -345,10 +351,14 @@ pub async fn make_request(
                 None,
                 started_at.elapsed().as_millis(),
                 should_collect_metrics,
-                &global_kv_tx,
                 &local_kv_tx,
             )
-            .await?;
+            .await?
+            {
+                if let Some(metrics) = metrics.as_mut() {
+                    metrics.push(metric);
+                }
+            }
 
             return Ok(FunctionStatus::Failed);
         }
@@ -361,7 +371,7 @@ pub async fn make_request(
             let status_code = response.status().as_u16() as i64;
             let headers_json = headers_to_json(response.headers())?;
             let error_message = format!("Failed to read response body: {}", err);
-            record_http_error(
+            if let Some(metric) = record_http_error(
                 &metrics_url,
                 &metrics_method,
                 time_stamp.clone(),
@@ -370,10 +380,14 @@ pub async fn make_request(
                 Some(headers_json),
                 started_at.elapsed().as_millis(),
                 should_collect_metrics,
-                &global_kv_tx,
                 &local_kv_tx,
             )
-            .await?;
+            .await?
+            {
+                if let Some(metrics) = metrics.as_mut() {
+                    metrics.push(metric);
+                }
+            }
 
             return Ok(FunctionStatus::Failed);
         }
@@ -428,7 +442,9 @@ pub async fn make_request(
             redirect_time: http_metrics.redirect_time().as_millis(),
         };
 
-        append_metric(&global_kv_tx, metric).await?;
+        if let Some(metrics) = metrics.as_mut() {
+            metrics.push(metric);
+        }
     }
 
     // println!("{}", response.text().await?);

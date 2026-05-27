@@ -54,6 +54,19 @@ impl KvStore {
         }
     }
 
+    pub fn extend_array(&mut self, key: impl ToString, values: Vec<JsonValue>) {
+        let key = key.to_string();
+
+        let arr = match self.data.get_mut(&key) {
+            Some(arr) => arr,
+            None => return,
+        };
+
+        if let JsonValue::Array(arr) = arr {
+            arr.extend(values);
+        }
+    }
+
     pub fn clear(&mut self) {
         self.data.clear();
     }
@@ -91,6 +104,10 @@ pub async fn new() -> (JoinHandle<()>, Sender) {
                 }
                 Command::Append { key, value, resp } => {
                     store.append(key, value);
+                    let _ = resp.send(empty_ok);
+                }
+                Command::ExtendArray { key, values, resp } => {
+                    store.extend_array(key, values);
                     let _ = resp.send(empty_ok);
                 }
                 Command::Exists { key, resp } => {
