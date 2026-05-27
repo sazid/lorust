@@ -1,0 +1,37 @@
+[[loadgen]]
+max_tasks = 10
+spawn_rate = "2"
+timeout = 3
+
+[[loadgen.step]]
+type = "http"
+method = "GET"
+url = "https://reqres.in/api/users?page=1"
+headers = { "Content-Type" = "application/json" }
+timeout = 60
+
+[[loadgen.step]]
+type = "python"
+code = '''
+user_id = http_response["data"][0]["id"]
+'''
+
+[[loadgen.step]]
+type = "python"
+code = '''
+print(f"Picked user_id: {user_id}")
+'''
+
+[[loadgen.step]]
+type = "http"
+method = "GET"
+url = "https://reqres.in/api/users/%|user_id|%"
+headers = { "Content-Type" = "application/json" }
+timeout = 60
+
+[[loadgen.step]]
+type = "python"
+code = '''
+data = http_response["data"]
+print(data["first_name"] + " " + data["last_name"])
+'''

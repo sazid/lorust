@@ -49,7 +49,7 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// Run a JSON flow definition
+    /// Run a TOML or JSON flow definition
     Run(FlowArgs),
 
     /// Run a simple HTTP load test without a flow file
@@ -58,11 +58,11 @@ enum Commands {
 
 #[derive(ClapArgs, Debug, Clone, Default)]
 struct FlowArgs {
-    /// Flow config in json
+    /// Flow config as inline JSON or TOML
     #[arg(long)]
     flow: Option<String>,
 
-    /// Flow config file path
+    /// Flow config file path. .toml and .json are supported.
     #[arg(long)]
     flow_path: Option<PathBuf>,
 }
@@ -250,11 +250,41 @@ fn flow_from_flow_args(args: FlowArgs) -> Result<Flow> {
         (Some(_), Some(_)) => Err(boxed_error(
             "provide only one of --flow or --flow-path, not both",
         )),
-        (Some(flow), None) => Ok(serde_json::from_str(&flow)?),
-        (None, Some(path)) => Ok(serde_json::from_str(&std::fs::read_to_string(path)?)?),
+        (Some(flow), None) => parse_flow_source(&flow, None),
+        (None, Some(path)) => {
+            let source = std::fs::read_to_string(&path)?;
+            let format = path
+                .extension()
+                .and_then(|extension| extension.to_str())
+                .map(str::to_ascii_lowercase);
+            parse_flow_source(&source, format.as_deref())
+        }
         (None, None) => Err(boxed_error(
             "provide --flow, --flow-path, or use `lorust http <url>`",
         )),
+    }
+}
+
+fn parse_flow_source(source: &str, format: Option<&str>) -> Result<Flow> {
+    match format {
+        Some("json") => Ok(serde_json::from_str(source)?),
+        Some("toml") => crate::flow::from_toml_str(source),
+        Some(format) => Err(boxed_error(format!(
+            "unsupported flow file extension '.{format}', expected .toml or .json",
+        ))),
+        None => parse_json_or_toml(source),
+    }
+}
+
+fn parse_json_or_toml(source: &str) -> Result<Flow> {
+    match serde_json::from_str(source) {
+        Ok(flow) => Ok(flow),
+        Err(json_err) => match crate::flow::from_toml_str(source) {
+            Ok(flow) => Ok(flow),
+            Err(toml_err) => Err(boxed_error(format!(
+                "flow was neither valid JSON nor TOML; JSON error: {json_err}; TOML error: {toml_err}",
+            ))),
+        },
     }
 }
 

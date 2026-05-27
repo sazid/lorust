@@ -20,6 +20,12 @@ pub struct PythonCodeParam {
     code: String,
 }
 
+impl PythonCodeParam {
+    pub fn new(code: String) -> Self {
+        Self { code }
+    }
+}
+
 fn boxed_error(message: impl Into<String>) -> Box<dyn std::error::Error + Send + Sync> {
     Box::new(io::Error::other(message.into()))
 }

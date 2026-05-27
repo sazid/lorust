@@ -10,6 +10,7 @@ tokio = { version = "1.52.3", features = ["full"] }
 isahc = { version = "2.0.0", default-features = false, features = ["http2", "static-curl", "native-tls-static", "text-decoding", "json", "cookies", "tls-insecure"] }
 serde = { version = "1.0.228", features = ["default", "derive"] }
 serde_json = { version = "1.0.150", features = ["std", "preserve_order"] }
+toml = "0.8"
 form-data-builder = "1.0.1"
 url_encoded_data = "0.6.1"
 thiserror = "2.0.18"

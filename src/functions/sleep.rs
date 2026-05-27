@@ -12,6 +12,12 @@ pub struct SleepParam {
     duration: String,
 }
 
+impl SleepParam {
+    pub fn new(duration: String) -> Self {
+        Self { duration }
+    }
+}
+
 pub async fn sleep(param: SleepParam, timeout: Option<Duration>, _kv_tx: Sender) -> FunctionResult {
     println!("Sleeping for {} secs", param.duration);
     let duration = param.duration.parse::<u64>()?;

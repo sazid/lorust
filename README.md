@@ -3,7 +3,7 @@
 > **lo**ad generator **rust**
 
 `lorust` is a Rust load generator for HTTP APIs. It supports simple CLI-driven
-HTTP load tests and JSON flow files with RustPython scripting between actions.
+HTTP load tests and TOML flow files with RustPython scripting between actions.
 
 ## Build
 
@@ -68,7 +68,7 @@ target/release/lorust http https://example.com \
 `lorust` has two primary modes:
 
 - `http`: run a simple HTTP load test without writing a flow file.
-- `run`: run a JSON flow definition.
+- `run`: run a TOML or JSON flow definition.
 
 Legacy top-level `--flow` and `--flow-path` flags are still supported.
 
@@ -189,14 +189,16 @@ returning the error.
 ## Flow Files
 
 Use flow files for multi-step scenarios, scripting, or variable interpolation.
+TOML is the preferred authoring format because multiline Python code can be
+written as literal strings. JSON flow files are still supported for compatibility.
 
 Run a flow file:
 
 ```sh
-target/release/lorust run --flow-path flow.json --output-path metrics.json
+target/release/lorust run --flow-path flow.toml --output-path metrics.json
 ```
 
-Run an inline flow:
+Run an inline JSON flow:
 
 ```sh
 target/release/lorust run \
@@ -206,12 +208,15 @@ target/release/lorust run \
 Legacy form:
 
 ```sh
-target/release/lorust --flow-path flow.json --output-path metrics.json
+target/release/lorust --flow-path flow.toml --output-path metrics.json
 ```
 
-### LoadGen
+Flow files are parsed by extension. Use `.toml` for the readable flow syntax and
+`.json` for the legacy enum-shaped JSON syntax.
 
-`LoadGen` is the top-level function. It schedules virtual-user tasks.
+### Load Generator
+
+Each `[[loadgen]]` table schedules virtual-user tasks.
 
 Common fields:
 
@@ -224,91 +229,61 @@ Common fields:
 | `run_id` | Optional run ID. CLI `--run-id` overrides this. |
 | `worker_id` | Optional worker ID. CLI `--worker-id` overrides this. |
 | `thresholds` | Optional summary threshold object. |
-| `functions_to_execute` | Ordered functions each virtual user executes. |
+| `step` | Ordered `[[loadgen.step]]` tables each virtual user executes. |
 
 `max_tasks` and `duration` can both be omitted only if the CLI path supplies a
 default. In flow files, provide at least one.
 
 Request-count example:
 
-```json
-{
-  "functions": [
-    {
-      "LoadGen": {
-        "max_tasks": 100,
-        "spawn_rate": "10",
-        "timeout": 30,
-        "functions_to_execute": [
-          {
-            "HttpRequest": {
-              "url": "https://example.com",
-              "timeout": 10
-            }
-          }
-        ]
-      }
-    }
-  ]
-}
+```toml
+[[loadgen]]
+max_tasks = 100
+spawn_rate = "10"
+timeout = 30
+
+[[loadgen.step]]
+type = "http"
+url = "https://example.com"
+timeout = 10
 ```
 
 Duration example:
 
-```json
-{
-  "functions": [
-    {
-      "LoadGen": {
-        "duration": 60,
-        "spawn_rate": "10",
-        "timeout": 30,
-        "functions_to_execute": [
-          {
-            "HttpRequest": {
-              "url": "https://example.com",
-              "timeout": 10
-            }
-          }
-        ]
-      }
-    }
-  ]
-}
+```toml
+[[loadgen]]
+duration = 60
+spawn_rate = "10"
+timeout = 30
+
+[[loadgen.step]]
+type = "http"
+url = "https://example.com"
+timeout = 10
 ```
 
 Threshold example:
 
-```json
-{
-  "functions": [
-    {
-      "LoadGen": {
-        "duration": 30,
-        "spawn_rate": "20",
-        "timeout": 30,
-        "thresholds": {
-          "max_error_rate": 1.0,
-          "max_p95_latency_ms": 500,
-          "max_p99_latency_ms": 1000,
-          "min_requests_per_sec": 18.0
-        },
-        "functions_to_execute": [
-          {
-            "HttpRequest": {
-              "url": "https://example.com"
-            }
-          }
-        ]
-      }
-    }
-  ]
-}
+```toml
+[[loadgen]]
+duration = 30
+spawn_rate = "20"
+timeout = 30
+
+[loadgen.thresholds]
+max_error_rate = 1.0
+max_p95_latency_ms = 500
+max_p99_latency_ms = 1000
+min_requests_per_sec = 18.0
+
+[[loadgen.step]]
+type = "http"
+url = "https://example.com"
 ```
 
-### HttpRequest
+### HTTP Step
 
-`HttpRequest` performs one HTTP request.
+`type = "http"` performs one HTTP request.
 
 Fields:
 
@@ -316,54 +291,51 @@ Fields:
 | --- | --- | --- |
 | `url` | Request URL. | required |
 | `method` | HTTP method. | `GET` |
-| `headers` | Array of `[name, value]` header pairs. | `[]` |
-| `body` | Request body enum. | `"Empty"` |
+| `headers` | Inline table of HTTP header names to values. | `{}` |
+| `body` | Raw request body string. | empty |
+| `form_data` | Inline table of multipart form field names to string values or file tables. | unset |
+| `form_urlencoded` | Inline table of form field names to values. | unset |
 | `timeout` | Request timeout in seconds. | `60` |
 | `redirect_limit` | Maximum redirects to follow. | `5` |
 | `max_response_body_bytes` | Maximum failed-response body bytes to store in metrics. | `4096` |
 
 GET example:
 
-```json
-{
-  "HttpRequest": {
-    "url": "https://example.com",
-    "timeout": 10
-  }
-}
+```toml
+[[loadgen.step]]
+type = "http"
+url = "https://example.com"
+timeout = 10
 ```
 
 POST with raw JSON body:
 
-```json
-{
-  "HttpRequest": {
-    "method": "POST",
-    "url": "https://api.example.com/users",
-    "headers": [
-      ["Content-Type", "application/json"]
-    ],
-    "body": {
-      "Raw": "{\"name\":\"Ada\"}"
-    },
-    "timeout": 10,
-    "max_response_body_bytes": 4096
-  }
-}
+```toml
+[[loadgen.step]]
+type = "http"
+method = "POST"
+url = "https://api.example.com/users"
+headers = { "Content-Type" = "application/json" }
+body = '''
+{"name":"Ada"}
+'''
+timeout = 10
+max_response_body_bytes = 4096
 ```
 
-Body variants:
+Only one body style can be used on an HTTP step:
 
-- `"Empty"`
-- `{ "Raw": "..." }`
-- `{ "FormData": [["name", { "Str": "value" }]] }`
-- `{ "FormUrlEncoded": [["name", "value"]] }`
+- omit `body`, `form_data`, and `form_urlencoded` for an empty body
+- `body = '''...'''` for a raw request body
+- `form_data = { name = "Ada" }` for multipart form fields
+- `form_data = { avatar = { file_path = "avatar.png", content_type = "image/png" } }` for multipart files
+- `form_urlencoded = { name = "Ada" }` for URL-encoded form bodies
 
 `BinaryOctetFilePath` exists in the type but is not implemented yet.
 
-### RunPythonCode
+### Python Step
 
-`RunPythonCode` runs RustPython code against the current virtual-user local
+`type = "python"` runs RustPython code against the current virtual-user local
 scope.
 
 Values assigned in Python are written back to the virtual-user scope when they
@@ -371,12 +343,12 @@ can be serialized to JSON.
 
 Example:
 
-```json
-{
-  "RunPythonCode": {
-    "code": "user_id = http_response[\"data\"][0][\"id\"]"
-  }
-}
+```toml
+[[loadgen.step]]
+type = "python"
+code = '''
+user_id = http_response["data"][0]["id"]
+'''
 ```
 
 ### Variable Interpolation
@@ -385,71 +357,55 @@ Strings can interpolate Python expressions with `%|...|%`.
 
 Example:
 
-```json
-{
-  "HttpRequest": {
-    "url": "https://api.example.com/users/%|user_id|%"
-  }
-}
+```toml
+[[loadgen.step]]
+type = "http"
+url = "https://api.example.com/users/%|user_id|%"
 ```
 
 The expression is evaluated against the virtual-user local scope.
 
 ### Sleep
 
-`Sleep` pauses the virtual user for a number of seconds.
+`type = "sleep"` pauses the virtual user for a number of seconds.
 
-```json
-{
-  "Sleep": {
-    "duration": "1"
-  }
-}
+```toml
+[[loadgen.step]]
+type = "sleep"
+duration = "1"
 ```
 
 ## Multi-Step Flow Example
 
-```json
-{
-  "functions": [
-    {
-      "LoadGen": {
-        "max_tasks": 2,
-        "spawn_rate": "1",
-        "timeout": 300,
-        "functions_to_execute": [
-          {
-            "HttpRequest": {
-              "url": "https://reqres.in/api/users?page=1",
-              "timeout": 300
-            }
-          },
-          {
-            "RunPythonCode": {
-              "code": "user_id = http_response[\"data\"][0][\"id\"]"
-            }
-          },
-          {
-            "RunPythonCode": {
-              "code": "print(f\"Picked user_id: {user_id}\")"
-            }
-          },
-          {
-            "HttpRequest": {
-              "url": "https://reqres.in/api/users/%|user_id|%",
-              "timeout": 300
-            }
-          },
-          {
-            "RunPythonCode": {
-              "code": "data = http_response[\"data\"]; print(data[\"first_name\"] + \" \" + data[\"last_name\"])"
-            }
-          }
-        ]
-      }
-    }
-  ]
-}
+```toml
+[[loadgen]]
+max_tasks = 2
+spawn_rate = "1"
+timeout = 300
+
+[[loadgen.step]]
+type = "http"
+url = "https://reqres.in/api/users?page=1"
+timeout = 300
+
+[[loadgen.step]]
+type = "python"
+code = '''
+user_id = http_response["data"][0]["id"]
+print(f"Picked user_id: {user_id}")
+'''
+
+[[loadgen.step]]
+type = "http"
+url = "https://reqres.in/api/users/%|user_id|%"
+timeout = 300
+
+[[loadgen.step]]
+type = "python"
+code = '''
+data = http_response["data"]
+print(data["first_name"] + " " + data["last_name"])
+'''
 ```
 
 ## Distributed Work
