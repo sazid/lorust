@@ -18,6 +18,14 @@ use crate::kv_store::commands::{Command, Sender};
 
 use super::result::*;
 
+#[derive(Debug, Clone)]
+pub struct HttpMetricIdentity {
+    pub run_id: String,
+    pub worker_id: String,
+    pub task_id: u64,
+    pub sequence: u64,
+}
+
 async fn set_local_value(local_kv_tx: &Sender, key: &str, value: JsonValue) -> Result<()> {
     let (resp_tx, resp_rx) = oneshot::channel();
     local_kv_tx
@@ -117,7 +125,7 @@ async fn record_http_error(
     status_code: Option<i64>,
     headers_json: Option<JsonValue>,
     elapsed_time: u128,
-    should_collect_metrics: bool,
+    metric_identity: Option<&HttpMetricIdentity>,
     local_kv_tx: &Sender,
 ) -> Result<Option<HttpMetric>> {
     set_local_value(
@@ -135,8 +143,12 @@ async fn record_http_error(
     let headers_json = headers_json.unwrap_or_else(|| JsonValue::Object(Default::default()));
     set_local_value(local_kv_tx, "http_response_headers", headers_json).await?;
 
-    if should_collect_metrics {
+    if let Some(identity) = metric_identity {
         return Ok(Some(HttpMetric {
+            run_id: identity.run_id.clone(),
+            worker_id: identity.worker_id.clone(),
+            task_id: identity.task_id,
+            sequence: identity.sequence,
             url: url.to_string(),
             http_verb: method.to_string(),
             status_code: status_code.unwrap_or(0),
@@ -162,6 +174,18 @@ async fn record_http_error(
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct HttpMetric {
+    /// Logical run ID shared by every worker in one load test.
+    pub run_id: String,
+
+    /// Worker that produced this metric.
+    pub worker_id: String,
+
+    /// Virtual user/task ID within the worker.
+    pub task_id: u64,
+
+    /// HTTP request sequence within the virtual user/task.
+    pub sequence: u64,
+
     /// URL of the request
     pub url: String,
 
@@ -293,7 +317,7 @@ pub async fn make_request(
     param: HttpRequestParam,
     timeout: Option<Duration>,
     client: HttpClient,
-    should_collect_metrics: bool,
+    metric_identity: Option<HttpMetricIdentity>,
     mut metrics: Option<&mut Vec<HttpMetric>>,
     local_kv_tx: Sender,
 ) -> FunctionResult {
@@ -367,7 +391,7 @@ pub async fn make_request(
                 None,
                 None,
                 started_at.elapsed().as_millis(),
-                should_collect_metrics,
+                metric_identity.as_ref(),
                 &local_kv_tx,
             )
             .await?
@@ -397,7 +421,7 @@ pub async fn make_request(
                 Some(status_code),
                 Some(headers_json),
                 started_at.elapsed().as_millis(),
-                should_collect_metrics,
+                metric_identity.as_ref(),
                 &local_kv_tx,
             )
             .await?
@@ -428,7 +452,7 @@ pub async fn make_request(
     set_local_value(&local_kv_tx, "http_response_headers", headers_json).await?;
 
     // Collect metrics if the key is set.
-    if should_collect_metrics {
+    if let Some(identity) = metric_identity.as_ref() {
         let response_body: String = if status_is_success {
             String::new()
         } else {
@@ -440,6 +464,10 @@ pub async fn make_request(
             .expect("metrics must be set to true in the builder");
 
         let metric = HttpMetric {
+            run_id: identity.run_id.clone(),
+            worker_id: identity.worker_id.clone(),
+            task_id: identity.task_id,
+            sequence: identity.sequence,
             url: metrics_url.clone(),
             http_verb: metrics_method.clone(),
             status_code,

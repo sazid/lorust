@@ -3,7 +3,11 @@ use serde_json::Value as JsonValue;
 
 use crate::{
     flow::Function,
-    functions::{http_request::HttpMetric, python_code, run::run_functions},
+    functions::{
+        http_request::HttpMetric,
+        python_code,
+        run::{TaskContext, run_functions},
+    },
     kv_store::commands::{Command, Sender, Value},
 };
 
@@ -16,6 +20,12 @@ use super::result::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LoadGenParam {
+    #[serde(default)]
+    run_id: Option<String>,
+
+    #[serde(default)]
+    worker_id: Option<String>,
+
     spawn_rate: String,
 
     timeout: u64,
@@ -34,12 +44,34 @@ impl LoadGenParam {
         functions_to_execute: Vec<Function>,
     ) -> Self {
         Self {
+            run_id: None,
+            worker_id: None,
             spawn_rate,
             timeout,
             max_tasks,
             functions_to_execute,
         }
     }
+
+    pub fn set_run_metadata(&mut self, run_id: Option<String>, worker_id: Option<String>) {
+        if let Some(run_id) = run_id {
+            self.run_id = Some(run_id);
+        }
+
+        if let Some(worker_id) = worker_id {
+            self.worker_id = Some(worker_id);
+        }
+    }
+}
+
+fn default_run_id() -> String {
+    chrono::Utc::now()
+        .format("run-%Y%m%dT%H%M%S%.fZ")
+        .to_string()
+}
+
+fn default_worker_id() -> String {
+    "local".into()
 }
 
 async fn eval_task_count(
@@ -97,11 +129,26 @@ fn print_http_metric_summary(metrics: &[HttpMetric], elapsed: Duration) {
     println!("P99 LATENCY MS: {}", percentile(&elapsed_times, 99));
 }
 
+fn sort_http_metrics(metrics: &mut [HttpMetric]) {
+    metrics.sort_by(|left, right| {
+        left.started_at_nanos
+            .cmp(&right.started_at_nanos)
+            .then_with(|| left.worker_id.cmp(&right.worker_id))
+            .then_with(|| left.task_id.cmp(&right.task_id))
+            .then_with(|| left.sequence.cmp(&right.sequence))
+    });
+}
+
 pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
     println!("Running load generator with the config:");
     let mut config_display = param.clone();
     config_display.functions_to_execute = Vec::new();
     println!("{:?}", config_display);
+
+    let run_id = param.run_id.clone().unwrap_or_else(default_run_id);
+    let worker_id = param.worker_id.clone().unwrap_or_else(default_worker_id);
+    println!("RUN ID: {run_id}");
+    println!("WORKER ID: {worker_id}");
 
     let (resp_tx, resp_rx) = oneshot::channel();
     kv_tx
@@ -133,10 +180,16 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
     let mut spawned_this_tick = 0;
 
     for i in 0..num_users {
+        let task_context = TaskContext {
+            run_id: run_id.clone(),
+            worker_id: worker_id.clone(),
+            task_id: i + 1,
+        };
         tasks.push(tokio::spawn(run_functions(
             param.functions_to_execute.clone(),
             kv_tx.clone(),
             param.timeout,
+            task_context,
         )));
 
         if i + 1 == num_users {
@@ -201,7 +254,7 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
     if let Value::Json(JsonValue::Array(metrics)) = metrics {
         println!("Collected metrics array size: {:?}", metrics.len());
         let mut metrics: Vec<HttpMetric> = serde_json::from_value(JsonValue::Array(metrics))?;
-        metrics.sort_by_key(|metric| metric.started_at_nanos);
+        sort_http_metrics(&mut metrics);
         print_http_metric_summary(&metrics, schedule_started_at.elapsed());
 
         let json_str = serde_json::to_string(&metrics)?;

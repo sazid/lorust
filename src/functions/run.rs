@@ -16,6 +16,13 @@ use super::python_code;
 use super::result::*;
 use super::sleep;
 
+#[derive(Debug, Clone)]
+pub struct TaskContext {
+    pub run_id: String,
+    pub worker_id: String,
+    pub task_id: u64,
+}
+
 pub async fn run_flow(flow: Flow, kv_tx: Sender) -> FunctionResult {
     run_loadgen(flow.functions, kv_tx.clone()).await?;
 
@@ -68,6 +75,7 @@ pub async fn run_functions(
     functions: Vec<Function>,
     global_kv_tx: Sender,
     timeout: u64,
+    task_context: TaskContext,
 ) -> FunctionResult {
     // TODO: Instead of defining something like this, there should be proper
     // scoping mechanisms with scope names that can be referred from inside
@@ -76,6 +84,7 @@ pub async fn run_functions(
     let should_collect_metrics = http_request::should_collect_metrics(&global_kv_tx).await?;
     let http_client = http_request::new_client(should_collect_metrics)?;
     let mut http_metrics = Vec::new();
+    let mut http_sequence = 0;
 
     let end_time = Instant::now() + Duration::from_secs(timeout);
     let mut final_status = FunctionStatus::Passed;
@@ -100,12 +109,23 @@ pub async fn run_functions(
             let remaining_time = end_time.checked_duration_since(Instant::now());
             match executable_function {
                 Function::HttpRequest(param) => {
+                    let metric_identity = if should_collect_metrics {
+                        http_sequence += 1;
+                        Some(http_request::HttpMetricIdentity {
+                            run_id: task_context.run_id.clone(),
+                            worker_id: task_context.worker_id.clone(),
+                            task_id: task_context.task_id,
+                            sequence: http_sequence,
+                        })
+                    } else {
+                        None
+                    };
                     let metrics = should_collect_metrics.then_some(&mut http_metrics);
                     http_request::make_request(
                         param,
                         remaining_time,
                         http_client.clone(),
-                        should_collect_metrics,
+                        metric_identity,
                         metrics,
                         local_kv_tx.clone(),
                     )

@@ -37,6 +37,14 @@ struct Cli {
     /// Write HTTP metrics JSON to this path
     #[arg(long, global = true, default_value_os_t = PathBuf::from("metrics_output"))]
     output_path: PathBuf,
+
+    /// Logical run ID to attach to every emitted metric
+    #[arg(long, global = true)]
+    run_id: Option<String>,
+
+    /// Worker ID to attach to every emitted metric
+    #[arg(long, global = true)]
+    worker_id: Option<String>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -166,6 +174,18 @@ fn flow_from_flow_args(args: FlowArgs) -> Result<Flow> {
     }
 }
 
+fn apply_run_metadata(flow: &mut Flow, run_id: Option<String>, worker_id: Option<String>) {
+    if run_id.is_none() && worker_id.is_none() {
+        return;
+    }
+
+    for function in &mut flow.functions {
+        if let Function::LoadGen(param) = function {
+            param.set_run_metadata(run_id.clone(), worker_id.clone());
+        }
+    }
+}
+
 async fn execute_flow(flow: Flow, output_path: PathBuf) -> Result<()> {
     let (kv_handle, kv_tx) = kv_store_new().await;
 
@@ -188,7 +208,7 @@ async fn execute_flow(flow: Flow, output_path: PathBuf) -> Result<()> {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    let flow = match cli.command {
+    let mut flow = match cli.command {
         Some(Commands::Run(args)) => flow_from_flow_args(args)?,
         Some(Commands::Http(args)) => {
             if cli.flow.has_flow_input() {
@@ -200,6 +220,7 @@ async fn main() -> Result<()> {
         }
         None => flow_from_flow_args(cli.flow)?,
     };
+    apply_run_metadata(&mut flow, cli.run_id, cli.worker_id);
 
     execute_flow(flow, cli.output_path).await
 }

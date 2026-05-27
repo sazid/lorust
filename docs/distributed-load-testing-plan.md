@@ -46,20 +46,20 @@ These are the minimum local changes needed before distributed work starts.
 
 - [x] Add simple CLI mode for direct HTTP tests.
 - [x] Add sortable per-request start timestamp.
-- [ ] Add metric identity fields:
-  - [ ] `run_id`
-  - [ ] `worker_id`
-  - [ ] `task_id`
-  - [ ] `sequence`
-- [ ] Add CLI flags for local distributed-compatible metadata:
-  - [ ] `--run-id`
-  - [ ] `--worker-id`
-- [ ] Make metric sorting stable by:
-  - [ ] `started_at_nanos`
-  - [ ] `worker_id`
-  - [ ] `task_id`
-  - [ ] `sequence`
-- [ ] Add tests or smoke checks proving metric identity fields are present.
+- [x] Add metric identity fields:
+  - [x] `run_id`
+  - [x] `worker_id`
+  - [x] `task_id`
+  - [x] `sequence`
+- [x] Add CLI flags for local distributed-compatible metadata:
+  - [x] `--run-id`
+  - [x] `--worker-id`
+- [x] Make metric sorting stable by:
+  - [x] `started_at_nanos`
+  - [x] `worker_id`
+  - [x] `task_id`
+  - [x] `sequence`
+- [x] Add tests or smoke checks proving metric identity fields are present.
 
 ## Phase 1: Define Contracts
 
