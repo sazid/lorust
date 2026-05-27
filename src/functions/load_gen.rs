@@ -26,6 +26,22 @@ pub struct LoadGenParam {
     functions_to_execute: Vec<Function>,
 }
 
+impl LoadGenParam {
+    pub fn new(
+        spawn_rate: String,
+        timeout: u64,
+        max_tasks: Option<u64>,
+        functions_to_execute: Vec<Function>,
+    ) -> Self {
+        Self {
+            spawn_rate,
+            timeout,
+            max_tasks,
+            functions_to_execute,
+        }
+    }
+}
+
 async fn eval_task_count(
     expression: &str,
     tick: i64,
