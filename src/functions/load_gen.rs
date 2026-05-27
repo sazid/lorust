@@ -36,6 +36,47 @@ fn eval_task_count(
     )
 }
 
+fn percentile(sorted_values: &[u128], percentile: u128) -> u128 {
+    if sorted_values.is_empty() {
+        return 0;
+    }
+
+    let index = ((sorted_values.len() as u128 - 1) * percentile).div_ceil(100) as usize;
+    sorted_values[index]
+}
+
+fn print_http_metric_summary(metrics: &[HttpMetric], elapsed: Duration) {
+    if metrics.is_empty() {
+        return;
+    }
+
+    let total_requests = metrics.len();
+    let success_count = metrics
+        .iter()
+        .filter(|metric| (200..300).contains(&metric.status_code))
+        .count();
+    let failure_count = total_requests - success_count;
+
+    let mut elapsed_times: Vec<u128> = metrics.iter().map(|metric| metric.elapsed_time).collect();
+    elapsed_times.sort_unstable();
+
+    let total_elapsed_time: u128 = elapsed_times.iter().sum();
+    let avg_elapsed_time = total_elapsed_time as f64 / total_requests as f64;
+    let rps = total_requests as f64 / elapsed.as_secs_f64().max(f64::EPSILON);
+    let error_rate = failure_count as f64 * 100.0 / total_requests as f64;
+
+    println!("=== HTTP metric summary ===");
+    println!("REQUESTS: {total_requests}");
+    println!("HTTP 2XX: {success_count}");
+    println!("HTTP NON-2XX/ERROR: {failure_count}");
+    println!("ERROR RATE: {error_rate:.2}%");
+    println!("REQUESTS/SEC: {rps:.2}");
+    println!("AVG LATENCY MS: {avg_elapsed_time:.2}");
+    println!("P50 LATENCY MS: {}", percentile(&elapsed_times, 50));
+    println!("P95 LATENCY MS: {}", percentile(&elapsed_times, 95));
+    println!("P99 LATENCY MS: {}", percentile(&elapsed_times, 99));
+}
+
 pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
     println!("Running load generator with the config:");
     let mut config_display = param.clone();
@@ -140,6 +181,7 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
     if let Value::Json(JsonValue::Array(metrics)) = metrics {
         println!("Collected metrics array size: {:?}", metrics.len());
         let metrics: Vec<HttpMetric> = serde_json::from_value(JsonValue::Array(metrics))?;
+        print_http_metric_summary(&metrics, schedule_started_at.elapsed());
 
         let json_str = serde_json::to_string(&metrics)?;
 
