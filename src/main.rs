@@ -78,13 +78,17 @@ struct HttpArgs {
     /// URL to request
     url: String,
 
-    /// Total number of requests to execute
-    #[arg(short = 'n', long, default_value_t = 1, value_parser = clap::value_parser!(u64).range(1..))]
-    requests: u64,
+    /// Total number of requests to execute. Defaults to 1 when --duration is absent.
+    #[arg(short = 'n', long, conflicts_with = "duration", value_parser = clap::value_parser!(u64).range(1..))]
+    requests: Option<u64>,
 
     /// Requests to start per second
     #[arg(short = 'r', long, default_value_t = 1, value_parser = clap::value_parser!(u64).range(1..))]
     rate: u64,
+
+    /// How long to start requests for. Supports plain seconds, or suffixes s, m, h.
+    #[arg(long, value_parser = parse_duration_secs)]
+    duration: Option<u64>,
 
     /// HTTP method. Defaults to GET, or POST when --body is provided.
     #[arg(short = 'm', long)]
@@ -124,6 +128,35 @@ fn parse_header(header: &str) -> Result<KeyValue<String>> {
     Ok(KeyValue(name.to_string(), value.trim_start().to_string()))
 }
 
+fn parse_duration_secs(value: &str) -> std::result::Result<u64, String> {
+    let value = value.trim();
+    if value.is_empty() {
+        return Err("duration cannot be empty".into());
+    }
+
+    let (number, multiplier) = match value.as_bytes().last().copied() {
+        Some(b's' | b'S') => (&value[..value.len() - 1], 1),
+        Some(b'm' | b'M') => (&value[..value.len() - 1], 60),
+        Some(b'h' | b'H') => (&value[..value.len() - 1], 60 * 60),
+        Some(_) => (value, 1),
+        None => return Err("duration cannot be empty".into()),
+    };
+
+    let number = number
+        .trim()
+        .parse::<u64>()
+        .map_err(|_| format!("invalid duration '{value}'"))?;
+    let duration = number
+        .checked_mul(multiplier)
+        .ok_or_else(|| format!("duration '{value}' is too large"))?;
+
+    if duration == 0 {
+        return Err("duration must be greater than zero".into());
+    }
+
+    Ok(duration)
+}
+
 fn flow_from_http_args(args: HttpArgs) -> Result<Flow> {
     let headers = args
         .headers
@@ -152,7 +185,9 @@ fn flow_from_http_args(args: HttpArgs) -> Result<Flow> {
     let load_gen = LoadGenParam::new(
         args.rate.to_string(),
         args.timeout,
-        Some(args.requests),
+        args.requests
+            .or_else(|| args.duration.is_none().then_some(1)),
+        args.duration,
         vec![Function::HttpRequest(request)],
     );
 

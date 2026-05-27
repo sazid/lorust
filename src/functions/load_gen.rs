@@ -33,6 +33,9 @@ pub struct LoadGenParam {
     #[serde(default)]
     max_tasks: Option<u64>,
 
+    #[serde(default)]
+    duration: Option<u64>,
+
     functions_to_execute: Vec<Function>,
 }
 
@@ -41,6 +44,7 @@ impl LoadGenParam {
         spawn_rate: String,
         timeout: u64,
         max_tasks: Option<u64>,
+        duration: Option<u64>,
         functions_to_execute: Vec<Function>,
     ) -> Self {
         Self {
@@ -49,6 +53,7 @@ impl LoadGenParam {
             spawn_rate,
             timeout,
             max_tasks,
+            duration,
             functions_to_execute,
         }
     }
@@ -162,28 +167,48 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
 
     let mut tasks = Vec::new();
 
-    let mut tick = 0;
-    let num_users = match param.max_tasks {
-        Some(value) if value > 0 => value,
+    let max_tasks = match param.max_tasks {
+        Some(value) if value > 0 => Some(value),
         Some(_) => {
             eprintln!("load generator configuration error: max_tasks must be greater than zero");
             return Ok(FunctionStatus::Failed);
         }
-        None => {
-            eprintln!("load generator configuration error: max_tasks is missing");
+        None => None,
+    };
+    let duration = match param.duration {
+        Some(value) if value > 0 => Some(Duration::from_secs(value)),
+        Some(_) => {
+            eprintln!("load generator configuration error: duration must be greater than zero");
             return Ok(FunctionStatus::Failed);
         }
+        None => None,
     };
 
+    if max_tasks.is_none() && duration.is_none() {
+        eprintln!("load generator configuration error: max_tasks or duration must be provided");
+        return Ok(FunctionStatus::Failed);
+    }
+
     let schedule_started_at = Instant::now();
+    let schedule_ends_at = duration.map(|duration| schedule_started_at + duration);
+    let mut tick = 0;
     let mut spawn_rate = eval_task_count(&param.spawn_rate, tick).await?.max(1) as u64;
     let mut spawned_this_tick = 0;
+    let mut next_task_id = 1;
 
-    for i in 0..num_users {
+    loop {
+        if max_tasks.is_some_and(|max_tasks| next_task_id > max_tasks) {
+            break;
+        }
+
+        if schedule_ends_at.is_some_and(|schedule_ends_at| Instant::now() >= schedule_ends_at) {
+            break;
+        }
+
         let task_context = TaskContext {
             run_id: run_id.clone(),
             worker_id: worker_id.clone(),
-            task_id: i + 1,
+            task_id: next_task_id,
         };
         tasks.push(tokio::spawn(run_functions(
             param.functions_to_execute.clone(),
@@ -191,8 +216,9 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
             param.timeout,
             task_context,
         )));
+        next_task_id += 1;
 
-        if i + 1 == num_users {
+        if max_tasks.is_some_and(|max_tasks| next_task_id > max_tasks) {
             break;
         }
 
@@ -208,6 +234,13 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
                 + Duration::from_secs(tick as u64)
                 + Duration::from_nanos(nanos_into_tick)
         };
+
+        if let Some(schedule_ends_at) = schedule_ends_at {
+            if next_spawn_at >= schedule_ends_at {
+                sleep_until(schedule_ends_at).await;
+                break;
+            }
+        }
 
         sleep_until(next_spawn_at).await;
     }

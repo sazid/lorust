@@ -195,8 +195,8 @@ These are the minimum local changes needed before distributed work starts.
 
 ## Phase 9: Load Modes
 
-- [ ] Add duration mode:
-  - [ ] run for `--duration 5m`
+- [x] Add duration mode:
+  - [x] run for `--duration 5m`
   - [ ] split duration equally across workers
 - [ ] Add constant concurrency mode:
   - [ ] keep N virtual users active

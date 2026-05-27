@@ -23,6 +23,12 @@ $ target/release/lorust http https://example.com -n 100 -r 10 --output-path metr
 This starts 100 total requests at 10 requests per second and writes
 request metrics to `metrics.json`.
 
+You can also run by duration instead of request count:
+
+```sh
+$ target/release/lorust http https://example.com --duration 60s -r 10 --output-path metrics.json
+```
+
 Metrics include `run_id`, `worker_id`, `task_id`, and `sequence` fields so
 outputs from multiple workers can be merged later. If `--run-id` is omitted,
 lorust generates one for the local run. If `--worker-id` is omitted, it uses
