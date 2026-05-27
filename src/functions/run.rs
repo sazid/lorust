@@ -73,6 +73,8 @@ pub async fn run_functions(
     // scoping mechanisms with scope names that can be referred from inside
     // functions. Maybe a graph of scopes that child scopes can refer back to?
     let (local_kv_handle, local_kv_tx) = kv_store_new().await;
+    let should_collect_metrics = http_request::should_collect_metrics(&global_kv_tx).await?;
+    let http_client = http_request::new_client(should_collect_metrics)?;
 
     let end_time = Instant::now() + Duration::from_secs(timeout);
     let mut final_status = FunctionStatus::Passed;
@@ -86,6 +88,7 @@ pub async fn run_functions(
         let exec_result: FunctionResult = {
             let exec_local_kv = local_kv_tx.clone();
             let exec_global_kv = global_kv_tx.clone();
+            let exec_http_client = http_client.clone();
             async move {
                 // 1. Convert the Function to a string.
                 let function_str = serde_json::to_string(&function)?;
@@ -104,6 +107,8 @@ pub async fn run_functions(
                         http_request::make_request(
                             param,
                             remaining_time,
+                            exec_http_client,
+                            should_collect_metrics,
                             exec_global_kv,
                             exec_local_kv,
                         )

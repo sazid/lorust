@@ -44,6 +44,30 @@ async fn append_metric(global_kv_tx: &Sender, metric: HttpMetric) -> Result<()> 
     Ok(())
 }
 
+pub async fn should_collect_metrics(global_kv_tx: &Sender) -> Result<bool> {
+    let (resp_tx, resp_rx) = oneshot::channel();
+    global_kv_tx
+        .send(Command::Exists {
+            key: "load_gen_metrics".into(),
+            resp: resp_tx,
+        })
+        .await?;
+    Ok(resp_rx.await??)
+}
+
+pub fn new_client(should_collect_metrics: bool) -> Result<HttpClient> {
+    Ok(HttpClient::builder()
+        .metrics(should_collect_metrics)
+        .cookies()
+        .tls_config(
+            TlsConfig::builder()
+                .danger_accept_invalid_certs(true)
+                .danger_accept_invalid_hosts(true)
+                .build(),
+        )
+        .build()?)
+}
+
 fn headers_to_json(headers: &isahc::http::HeaderMap) -> Result<JsonValue> {
     let headers: BTreeMap<String, String> = headers
         .iter()
@@ -244,19 +268,11 @@ pub struct HttpRequestParam {
 pub async fn make_request(
     param: HttpRequestParam,
     timeout: Option<Duration>,
+    client: HttpClient,
+    should_collect_metrics: bool,
     global_kv_tx: Sender,
     local_kv_tx: Sender,
 ) -> FunctionResult {
-    // Check if the load_gen_metrics is set.
-    let (resp_tx, resp_rx) = oneshot::channel();
-    global_kv_tx
-        .send(Command::Exists {
-            key: "load_gen_metrics".into(),
-            resp: resp_tx,
-        })
-        .await?;
-    let should_collect_metrics = resp_rx.await??;
-
     // timeout from the parameters of this request
     let param_timeout = Duration::from_secs(param.timeout.unwrap_or(60));
     let timeout = match timeout {
@@ -267,30 +283,14 @@ pub async fn make_request(
     let metrics_url = param.url.clone();
     let metrics_method = param.method.clone();
 
-    let client = HttpClient::builder()
-        .timeout(timeout)
-        .metrics(should_collect_metrics)
-        .redirect_policy(RedirectPolicy::Limit(param.redirect_limit.unwrap_or(5)))
-        .cookies()
-        .tls_config(
-            TlsConfig::builder()
-                .danger_accept_invalid_certs(true)
-                .danger_accept_invalid_hosts(true)
-                .build(),
-        )
-        .build()
-        .expect("failed to construct HttpClient");
-
     let mut request_builder = Request::builder()
         .uri(metrics_url.clone())
-        .method(Method::from_str(&metrics_method)?);
+        .method(Method::from_str(&metrics_method)?)
+        .timeout(timeout)
+        .redirect_policy(RedirectPolicy::Limit(param.redirect_limit.unwrap_or(5)));
 
     for KeyValue(key, value) in param.headers {
         request_builder = request_builder.header(key, value);
-    }
-
-    if let Some(duration) = param.timeout {
-        request_builder = request_builder.timeout(Duration::from_secs(duration));
     }
 
     let body = match param.body {
