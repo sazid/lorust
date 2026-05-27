@@ -1,4 +1,4 @@
-use rhai::{Array, Dynamic};
+use serde_json::Value as JsonValue;
 use tokio::sync::{mpsc, oneshot};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -11,8 +11,7 @@ pub type Sender = mpsc::Sender<Command>;
 
 #[derive(Debug, Clone)]
 pub enum Value {
-    Dynamic(Dynamic),
-    Array(Array),
+    Json(JsonValue),
 }
 
 #[allow(dead_code)]
@@ -28,12 +27,12 @@ pub enum Command {
     },
     Set {
         key: String,
-        value: Dynamic,
+        value: JsonValue,
         resp: Responder<()>,
     },
     SetArray {
         key: String,
-        value: Array,
+        value: Vec<JsonValue>,
         resp: Responder<()>,
     },
     Delete {
@@ -42,7 +41,7 @@ pub enum Command {
     },
     Append {
         key: String,
-        value: Dynamic,
+        value: JsonValue,
         resp: Responder<()>,
     },
     ListKeys {

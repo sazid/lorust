@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use rhai::Dynamic;
+use serde_json::Value as JsonValue;
 use tokio::{sync::mpsc, task::JoinHandle};
 
 use crate::kv_store::commands::{Command, Sender, Value};
@@ -10,7 +10,7 @@ use crate::kv_store::commands::{Command, Sender, Value};
 // 3. Return the receivers and transmitters
 
 struct KvStore {
-    data: BTreeMap<String, Value>,
+    data: BTreeMap<String, JsonValue>,
 }
 
 #[allow(dead_code)]
@@ -21,7 +21,7 @@ impl KvStore {
         }
     }
 
-    pub fn get(&self, key: impl ToString) -> Option<&Value> {
+    pub fn get(&self, key: impl ToString) -> Option<&JsonValue> {
         let key = key.to_string();
         self.data.get(&key)
     }
@@ -31,33 +31,25 @@ impl KvStore {
         self.data.contains_key(&key)
     }
 
-    pub fn set(&mut self, key: impl ToString, value: Value) -> Option<Value> {
+    pub fn set(&mut self, key: impl ToString, value: JsonValue) -> Option<JsonValue> {
         let key = key.to_string();
         self.data.insert(key, value)
     }
 
-    pub fn delete(&mut self, key: impl ToString) -> Option<Value> {
+    pub fn delete(&mut self, key: impl ToString) -> Option<JsonValue> {
         let key = key.to_string();
         self.data.remove(&key)
     }
 
-    pub fn append(&mut self, key: impl ToString, value: Dynamic) {
+    pub fn append(&mut self, key: impl ToString, value: JsonValue) {
         let key = key.to_string();
-
-        // self.data
-        //     .entry(key)
-        //     .and_modify(|val| match val {
-        //         Value::Vec(arr) => arr.push(value),
-        //         _ => (),
-        //     })
-        //     .or_insert(Value::Vec(Vec::new()));
 
         let arr = match self.data.get_mut(&key) {
             Some(arr) => arr,
             None => return,
         };
 
-        if let Value::Array(arr) = arr {
+        if let JsonValue::Array(arr) = arr {
             arr.push(value);
         }
     }
@@ -84,13 +76,13 @@ pub async fn new() -> (JoinHandle<()>, Sender) {
                 Command::Get { key, resp } => {
                     let res = store.get(key);
                     match res {
-                        Some(val) => resp.send(Ok(val.clone())),
-                        None => resp.send(Ok(Value::Dynamic(Dynamic::from(())))),
+                        Some(val) => resp.send(Ok(Value::Json(val.clone()))),
+                        None => resp.send(Ok(Value::Json(JsonValue::Null))),
                     }
                     .expect("setting values should never fail");
                 }
                 Command::Set { key, value, resp } => {
-                    store.set(key, Value::Dynamic(value));
+                    store.set(key, value);
                     let _ = resp.send(empty_ok);
                 }
                 Command::Delete { key, resp } => {
@@ -106,7 +98,7 @@ pub async fn new() -> (JoinHandle<()>, Sender) {
                     let _ = resp.send(Ok(exists));
                 }
                 Command::SetArray { key, value, resp } => {
-                    store.set(key, Value::Array(value));
+                    store.set(key, JsonValue::Array(value));
                     let _ = resp.send(empty_ok);
                 }
                 Command::ListKeys { resp } => {

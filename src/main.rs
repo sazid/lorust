@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use kv_store::commands::Command;
-use rhai::Dynamic;
+use serde_json::Value as JsonValue;
 use tokio::sync::oneshot;
 
 use crate::flow::Flow;
@@ -53,7 +53,7 @@ async fn main() -> Result<()> {
     kv_tx
         .send(Command::Set {
             key: "metrics_output_path".into(),
-            value: Dynamic::from(args.output_path),
+            value: JsonValue::String(args.output_path.to_string_lossy().into_owned()),
             resp: resp_tx,
         })
         .await?;

@@ -3,7 +3,7 @@
 > <u>**lo**</u>ad generator <u>**rust**</u>
 
 A load generator tool written in Rust. Currently supports
-http api calls and custom scripting support with Rhai.
+http api calls and custom scripting support with RustPython.
 
 ## Build
 
@@ -55,13 +55,13 @@ Example config (this will likely change):
                         }
                     },
                     {
-                        "RunRhaiCode": {
-                            "code": "let user_id = http_response[\"data\"].sample().id;"
+                        "RunPythonCode": {
+                            "code": "user_id = http_response[\"data\"][0][\"id\"]"
                         }
                     },
                     {
-                        "RunRhaiCode": {
-                            "code": "print(\"Picked user_id: \" + user_id);"
+                        "RunPythonCode": {
+                            "code": "print(f\"Picked user_id: {user_id}\")"
                         }
                     },
                     {
@@ -71,8 +71,8 @@ Example config (this will likely change):
                         }
                     },
                     {
-                        "RunRhaiCode": {
-                            "code": "let data = http_response.data; print(data.first_name + \" \" + data.last_name);"
+                        "RunPythonCode": {
+                            "code": "data = http_response[\"data\"]; print(data[\"first_name\"] + \" \" + data[\"last_name\"])"
                         }
                     }
                 ]
