@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::str::FromStr;
 use std::time::Duration;
+use std::time::Instant as StdInstant;
 
 use isahc::http::Method;
 use isahc::{AsyncBody, AsyncReadResponseExt, HttpClient};
@@ -56,8 +57,9 @@ fn headers_to_json(headers: &isahc::http::HeaderMap) -> Result<JsonValue> {
     Ok(serde_json::to_value(headers)?)
 }
 
-fn body_to_json(body: &str) -> JsonValue {
-    serde_json::from_str(body).unwrap_or_else(|_| JsonValue::String(body.to_string()))
+fn body_to_json(body: &[u8]) -> JsonValue {
+    serde_json::from_slice(body)
+        .unwrap_or_else(|_| JsonValue::String(String::from_utf8_lossy(body).into_owned()))
 }
 
 async fn record_http_error(
@@ -67,6 +69,7 @@ async fn record_http_error(
     error_message: String,
     status_code: Option<i64>,
     headers_json: Option<JsonValue>,
+    elapsed_time: u128,
     should_collect_metrics: bool,
     global_kv_tx: &Sender,
     local_kv_tx: &Sender,
@@ -102,7 +105,7 @@ async fn record_http_error(
             connect_time: 0,
             tls_handshake_time: 0,
             starttransfer_time: 0,
-            elapsed_time: 0,
+            elapsed_time,
             redirect_time: 0,
         };
 
@@ -328,6 +331,7 @@ pub async fn make_request(
     let time_stamp = chrono::Local::now()
         .format("%Y-%m-%d %H:%M:%S.%f")
         .to_string();
+    let started_at = StdInstant::now();
     let mut response = match client.send_async(request).await {
         Ok(response) => response,
         Err(err) => {
@@ -339,6 +343,7 @@ pub async fn make_request(
                 error_message,
                 None,
                 None,
+                started_at.elapsed().as_millis(),
                 should_collect_metrics,
                 &global_kv_tx,
                 &local_kv_tx,
@@ -349,8 +354,8 @@ pub async fn make_request(
         }
     };
 
-    // WARNING: The response text() can be read only once.
-    let body = match response.text().await {
+    // WARNING: The response body can be read only once.
+    let body = match response.bytes().await {
         Ok(body) => body,
         Err(err) => {
             let status_code = response.status().as_u16() as i64;
@@ -363,6 +368,7 @@ pub async fn make_request(
                 error_message,
                 Some(status_code),
                 Some(headers_json),
+                started_at.elapsed().as_millis(),
                 should_collect_metrics,
                 &global_kv_tx,
                 &local_kv_tx,
@@ -373,11 +379,16 @@ pub async fn make_request(
         }
     };
 
+    let status = response.status();
+    let status_is_success = status.is_success();
+    let status_code = status.as_u16() as i64;
+    let response_body = String::from_utf8_lossy(&body);
+
     set_local_value(&local_kv_tx, "http_response", body_to_json(&body)).await?;
     set_local_value(
         &local_kv_tx,
         "http_status_code",
-        JsonValue::from(response.status().as_u16() as i64),
+        JsonValue::from(status_code),
     )
     .await?;
 
@@ -386,12 +397,11 @@ pub async fn make_request(
 
     // Collect metrics if the key is set.
     if should_collect_metrics {
-        let response_body: String = if response.status().is_success() {
-            ""
+        let response_body: String = if status_is_success {
+            String::new()
         } else {
-            &body
-        }
-        .into();
+            response_body.into_owned()
+        };
 
         let http_metrics = response
             .metrics()
@@ -400,7 +410,7 @@ pub async fn make_request(
         let metric = HttpMetric {
             url: metrics_url.clone(),
             http_verb: metrics_method.clone(),
-            status_code: response.status().as_u16() as i64,
+            status_code,
             response_body_size: body.len(),
             time_stamp,
             response_body,
@@ -425,5 +435,9 @@ pub async fn make_request(
     // println!("{:#?}", response.metrics());
     // println!("{:#?}", param.url);
 
-    Ok(FunctionStatus::Passed)
+    if status_is_success {
+        Ok(FunctionStatus::Passed)
+    } else {
+        Ok(FunctionStatus::Failed)
+    }
 }
