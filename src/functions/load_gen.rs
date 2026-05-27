@@ -184,7 +184,8 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
 
     if let Value::Json(JsonValue::Array(metrics)) = metrics {
         println!("Collected metrics array size: {:?}", metrics.len());
-        let metrics: Vec<HttpMetric> = serde_json::from_value(JsonValue::Array(metrics))?;
+        let mut metrics: Vec<HttpMetric> = serde_json::from_value(JsonValue::Array(metrics))?;
+        metrics.sort_by_key(|metric| metric.started_at_nanos);
         print_http_metric_summary(&metrics, schedule_started_at.elapsed());
 
         let json_str = serde_json::to_string(&metrics)?;

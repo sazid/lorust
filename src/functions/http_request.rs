@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::str::FromStr;
-use std::time::Duration;
 use std::time::Instant as StdInstant;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use isahc::http::Method;
 use isahc::{AsyncBody, AsyncReadResponseExt, HttpClient};
@@ -95,10 +95,24 @@ fn body_to_json(body: &[u8]) -> JsonValue {
         .unwrap_or_else(|_| JsonValue::String(String::from_utf8_lossy(body).into_owned()))
 }
 
+fn request_started_at() -> (String, u64) {
+    let started_at = SystemTime::now();
+    let time_stamp = chrono::DateTime::<chrono::Local>::from(started_at)
+        .format("%Y-%m-%d %H:%M:%S.%f")
+        .to_string();
+    let started_at_nanos = started_at
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos().min(u64::MAX as u128) as u64)
+        .unwrap_or_default();
+
+    (time_stamp, started_at_nanos)
+}
+
 async fn record_http_error(
     url: &str,
     method: &str,
     time_stamp: String,
+    started_at_nanos: u64,
     error_message: String,
     status_code: Option<i64>,
     headers_json: Option<JsonValue>,
@@ -128,6 +142,7 @@ async fn record_http_error(
             status_code: status_code.unwrap_or(0),
             response_body_size: 0,
             time_stamp,
+            started_at_nanos,
             response_body: error_message,
             upload_total: 0,
             download_total: 0,
@@ -161,6 +176,9 @@ pub struct HttpMetric {
 
     /// When did the request start
     pub time_stamp: String,
+
+    /// Request start time as Unix epoch nanoseconds for sortable output.
+    pub started_at_nanos: u64,
 
     /// Whenever the status code is not within the range 200 <= 299,
     /// the response body is collected as a string.
@@ -334,9 +352,7 @@ pub async fn make_request(
 
     let request = request_builder.body(body)?;
 
-    let time_stamp = chrono::Local::now()
-        .format("%Y-%m-%d %H:%M:%S.%f")
-        .to_string();
+    let (time_stamp, started_at_nanos) = request_started_at();
     let started_at = StdInstant::now();
     let mut response = match client.send_async(request).await {
         Ok(response) => response,
@@ -346,6 +362,7 @@ pub async fn make_request(
                 &metrics_url,
                 &metrics_method,
                 time_stamp.clone(),
+                started_at_nanos,
                 error_message,
                 None,
                 None,
@@ -375,6 +392,7 @@ pub async fn make_request(
                 &metrics_url,
                 &metrics_method,
                 time_stamp.clone(),
+                started_at_nanos,
                 error_message,
                 Some(status_code),
                 Some(headers_json),
@@ -427,6 +445,7 @@ pub async fn make_request(
             status_code,
             response_body_size: body.len(),
             time_stamp,
+            started_at_nanos,
             response_body,
 
             upload_total: http_metrics.upload_progress().0,
