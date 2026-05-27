@@ -174,15 +174,17 @@ These are the minimum local changes needed before distributed work starts.
 
 ## Phase 7: Thresholds And CI Use
 
-- [ ] Add threshold config:
-  - [ ] max error rate
-  - [ ] max p95 latency
-  - [ ] max p99 latency
-  - [ ] min requests/sec
+- [x] Add threshold config:
+  - [x] max error rate
+  - [x] max p95 latency
+  - [x] max p99 latency
+  - [x] min requests/sec
 - [ ] Evaluate thresholds against local and distributed summaries.
-- [ ] Print threshold pass/fail output.
-- [ ] Return non-zero exit code when thresholds fail.
-- [ ] Add examples for CI usage.
+  - [x] local summaries
+  - [ ] distributed summaries
+- [x] Print threshold pass/fail output.
+- [x] Return non-zero exit code when thresholds fail.
+- [x] Add examples for CI usage.
 
 ## Phase 8: Clock And Ordering Notes
 

@@ -24,21 +24,26 @@ pub struct TaskContext {
 }
 
 pub async fn run_flow(flow: Flow, kv_tx: Sender) -> FunctionResult {
-    run_loadgen(flow.functions, kv_tx.clone()).await?;
-
-    Ok(FunctionStatus::Passed)
+    run_loadgen(flow.functions, kv_tx.clone()).await
 }
 
 pub async fn run_loadgen(functions: Vec<Function>, kv_tx: Sender) -> FunctionResult {
+    let mut final_status = FunctionStatus::Passed;
+
     for (index, function) in functions.into_iter().enumerate() {
         println!("--- Running function #{} ---", index + 1);
         match function {
-            Function::LoadGen(param) => load_gen::load_gen(param.clone(), kv_tx.clone()).await?,
+            Function::LoadGen(param) => {
+                match load_gen::load_gen(param.clone(), kv_tx.clone()).await? {
+                    FunctionStatus::Passed => {}
+                    FunctionStatus::Failed => final_status = FunctionStatus::Failed,
+                }
+            }
             _ => panic!("top level function must be loadgen"),
         };
     }
 
-    Ok(FunctionStatus::Passed)
+    Ok(final_status)
 }
 
 async fn interpolate_variables(input: &str, local_kv_tx: Sender) -> Result<Cow<'_, str>> {

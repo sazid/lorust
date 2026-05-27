@@ -46,9 +46,14 @@ $ target/release/lorust http https://api.example.com/users \
     -H 'Content-Type: application/json' \
     -d '{"name":"Ada"}' \
     --max-response-body-bytes 4096 \
+    --max-error-rate 1 \
+    --max-p95-ms 500 \
     --timeout 10 \
     --output-path metrics.json
 ```
+
+Threshold flags make the process exit non-zero when the run misses the target,
+which is useful for CI and scripted checks.
 
 For scripted flows, use a JSON flow file:
 

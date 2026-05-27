@@ -14,7 +14,7 @@ use crate::flow::{Flow, Function};
 use crate::functions::run;
 use crate::functions::{
     http_request::{HttpBody, HttpRequestParam, KeyValue},
-    load_gen::LoadGenParam,
+    load_gen::{HttpMetricThresholds, LoadGenParam},
 };
 use kv_store::store::new as kv_store_new;
 
@@ -113,6 +113,22 @@ struct HttpArgs {
     /// Maximum failed-response body bytes to store in metrics
     #[arg(long, default_value_t = 4096)]
     max_response_body_bytes: usize,
+
+    /// Fail the run if error rate is above this percentage
+    #[arg(long, value_parser = parse_percentage)]
+    max_error_rate: Option<f64>,
+
+    /// Fail the run if p95 latency is above this many milliseconds
+    #[arg(long)]
+    max_p95_ms: Option<u128>,
+
+    /// Fail the run if p99 latency is above this many milliseconds
+    #[arg(long)]
+    max_p99_ms: Option<u128>,
+
+    /// Fail the run if achieved requests/sec is below this value
+    #[arg(long, value_parser = parse_non_negative_f64)]
+    min_rps: Option<f64>,
 }
 
 fn parse_header(header: &str) -> Result<KeyValue<String>> {
@@ -161,6 +177,28 @@ fn parse_duration_secs(value: &str) -> std::result::Result<u64, String> {
     Ok(duration)
 }
 
+fn parse_percentage(value: &str) -> std::result::Result<f64, String> {
+    let parsed = value
+        .parse::<f64>()
+        .map_err(|_| format!("invalid percentage '{value}'"))?;
+    if !(0.0..=100.0).contains(&parsed) {
+        return Err("percentage must be between 0 and 100".into());
+    }
+
+    Ok(parsed)
+}
+
+fn parse_non_negative_f64(value: &str) -> std::result::Result<f64, String> {
+    let parsed = value
+        .parse::<f64>()
+        .map_err(|_| format!("invalid number '{value}'"))?;
+    if parsed < 0.0 {
+        return Err("number must be greater than or equal to zero".into());
+    }
+
+    Ok(parsed)
+}
+
 fn flow_from_http_args(args: HttpArgs) -> Result<Flow> {
     let headers = args
         .headers
@@ -187,7 +225,7 @@ fn flow_from_http_args(args: HttpArgs) -> Result<Flow> {
         max_response_body_bytes: Some(args.max_response_body_bytes),
     };
 
-    let load_gen = LoadGenParam::new(
+    let mut load_gen = LoadGenParam::new(
         args.rate.to_string(),
         args.timeout,
         args.requests
@@ -195,6 +233,12 @@ fn flow_from_http_args(args: HttpArgs) -> Result<Flow> {
         args.duration,
         vec![Function::HttpRequest(request)],
     );
+    load_gen.set_thresholds(HttpMetricThresholds {
+        max_error_rate: args.max_error_rate,
+        max_p95_latency_ms: args.max_p95_ms,
+        max_p99_latency_ms: args.max_p99_ms,
+        min_requests_per_sec: args.min_rps,
+    });
 
     Ok(Flow {
         functions: vec![Function::LoadGen(load_gen)],
@@ -239,10 +283,13 @@ async fn execute_flow(flow: Flow, output_path: PathBuf) -> Result<()> {
         .await?;
     resp_rx.await??;
 
-    run::run_flow(flow, kv_tx).await?;
+    let status = run::run_flow(flow, kv_tx).await?;
     kv_handle.await?;
 
-    Ok(())
+    match status {
+        functions::result::FunctionStatus::Passed => Ok(()),
+        functions::result::FunctionStatus::Failed => Err(boxed_error("load test failed")),
+    }
 }
 
 #[tokio::main]

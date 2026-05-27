@@ -36,6 +36,9 @@ pub struct LoadGenParam {
     #[serde(default)]
     duration: Option<u64>,
 
+    #[serde(default)]
+    thresholds: HttpMetricThresholds,
+
     functions_to_execute: Vec<Function>,
 }
 
@@ -54,6 +57,7 @@ impl LoadGenParam {
             timeout,
             max_tasks,
             duration,
+            thresholds: HttpMetricThresholds::default(),
             functions_to_execute,
         }
     }
@@ -66,6 +70,10 @@ impl LoadGenParam {
         if let Some(worker_id) = worker_id {
             self.worker_id = Some(worker_id);
         }
+    }
+
+    pub fn set_thresholds(&mut self, thresholds: HttpMetricThresholds) {
+        self.thresholds = thresholds;
     }
 }
 
@@ -115,6 +123,21 @@ pub struct HttpMetricSummary {
     pub p99_latency_ms: u128,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct HttpMetricThresholds {
+    #[serde(default)]
+    pub max_error_rate: Option<f64>,
+
+    #[serde(default)]
+    pub max_p95_latency_ms: Option<u128>,
+
+    #[serde(default)]
+    pub max_p99_latency_ms: Option<u128>,
+
+    #[serde(default)]
+    pub min_requests_per_sec: Option<f64>,
+}
+
 impl HttpMetricSummary {
     pub fn from_metrics(metrics: &[HttpMetric], elapsed: Duration) -> Option<Self> {
         if metrics.is_empty() {
@@ -161,6 +184,57 @@ impl HttpMetricSummary {
         println!("P50 LATENCY MS: {}", self.p50_latency_ms);
         println!("P95 LATENCY MS: {}", self.p95_latency_ms);
         println!("P99 LATENCY MS: {}", self.p99_latency_ms);
+    }
+}
+
+impl HttpMetricThresholds {
+    fn has_thresholds(&self) -> bool {
+        self.max_error_rate.is_some()
+            || self.max_p95_latency_ms.is_some()
+            || self.max_p99_latency_ms.is_some()
+            || self.min_requests_per_sec.is_some()
+    }
+
+    fn evaluate(&self, summary: &HttpMetricSummary) -> Vec<String> {
+        let mut failures = Vec::new();
+
+        if let Some(max_error_rate) = self.max_error_rate {
+            if summary.error_rate > max_error_rate {
+                failures.push(format!(
+                    "error rate {:.2}% exceeded max {:.2}%",
+                    summary.error_rate, max_error_rate
+                ));
+            }
+        }
+
+        if let Some(max_p95_latency_ms) = self.max_p95_latency_ms {
+            if summary.p95_latency_ms > max_p95_latency_ms {
+                failures.push(format!(
+                    "p95 latency {}ms exceeded max {}ms",
+                    summary.p95_latency_ms, max_p95_latency_ms
+                ));
+            }
+        }
+
+        if let Some(max_p99_latency_ms) = self.max_p99_latency_ms {
+            if summary.p99_latency_ms > max_p99_latency_ms {
+                failures.push(format!(
+                    "p99 latency {}ms exceeded max {}ms",
+                    summary.p99_latency_ms, max_p99_latency_ms
+                ));
+            }
+        }
+
+        if let Some(min_requests_per_sec) = self.min_requests_per_sec {
+            if summary.requests_per_sec < min_requests_per_sec {
+                failures.push(format!(
+                    "requests/sec {:.2} was below min {:.2}",
+                    summary.requests_per_sec, min_requests_per_sec
+                ));
+            }
+        }
+
+        failures
     }
 }
 
@@ -322,6 +396,18 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
             HttpMetricSummary::from_metrics(&metrics, schedule_started_at.elapsed())
         {
             summary.print();
+            let threshold_failures = param.thresholds.evaluate(&summary);
+            if threshold_failures.is_empty() {
+                if param.thresholds.has_thresholds() {
+                    println!("=== Thresholds passed ===");
+                }
+            } else {
+                println!("=== Threshold failures ===");
+                for failure in threshold_failures {
+                    println!("{failure}");
+                }
+                overall_status = FunctionStatus::Failed;
+            }
         }
 
         let json_str = serde_json::to_string(&metrics)?;
