@@ -9,7 +9,7 @@ use crate::{
 
 use tokio::{
     sync::oneshot,
-    time::{Duration, sleep},
+    time::{Duration, Instant, sleep_until},
 };
 
 use super::result::*;
@@ -67,6 +67,10 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
         }
     };
 
+    let schedule_started_at = Instant::now();
+    let mut spawn_rate = eval_task_count(&param.spawn_rate, tick)?.max(1) as u64;
+    let mut spawned_this_tick = 0;
+
     for i in 0..num_users {
         tasks.push(tokio::spawn(run_functions(
             param.functions_to_execute.clone(),
@@ -74,11 +78,24 @@ pub async fn load_gen(param: LoadGenParam, kv_tx: Sender) -> FunctionResult {
             param.timeout,
         )));
 
-        let spawn_rate = eval_task_count(&param.spawn_rate, tick)?.max(1) as u64;
-        if (i + 1) % spawn_rate == 0 {
-            sleep(Duration::from_secs(1)).await;
-            tick += 1;
+        if i + 1 == num_users {
+            break;
         }
+
+        spawned_this_tick += 1;
+        let next_spawn_at = if spawned_this_tick >= spawn_rate {
+            tick += 1;
+            spawned_this_tick = 0;
+            spawn_rate = eval_task_count(&param.spawn_rate, tick)?.max(1) as u64;
+            schedule_started_at + Duration::from_secs(tick as u64)
+        } else {
+            let nanos_into_tick = spawned_this_tick * 1_000_000_000 / spawn_rate;
+            schedule_started_at
+                + Duration::from_secs(tick as u64)
+                + Duration::from_nanos(nanos_into_tick)
+        };
+
+        sleep_until(next_spawn_at).await;
     }
 
     let mut pass_count = 0;
